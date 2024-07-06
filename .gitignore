@@ -1,0 +1,62 @@
+# Byte-compiled / optimized Python files
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+env/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Compiled source
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# OS or editor-specific files
+.DS_Store
+Thumbs.db
+.desktop.ini
+*.swp
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# Package directories
+dist/
+build/
+*.egg-info/
+
+# Personal IDE or editor files
+.idea/
+.vscode/
+
+# Jupyter Notebook files
+.ipynb_checkpoints/
+
+# Ignore local development settings
+/.env
+
+# Optional: ignore data or model files if not tracked separately
+# data/
+# models/
+
+# Ignore any secrets or sensitive information
+# secrets.ini
+# *.key
+# *.pem
+
+# Ignore backup files from text editors
+*~
+
+# Ignore system files
+/.DS_Store
+
+# Ignore matplotlib cache
+.cache/
