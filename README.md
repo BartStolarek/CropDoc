@@ -67,3 +67,13 @@ or
 ```git commit -m "Added <library-name>"```
 
 ```git push```
+
+
+## Running formatters over code
+1. Make sure you are in the 'CropDoc' directory
+
+```cd CropDoc```
+
+2. Run the formatter
+
+```python manage.py format```

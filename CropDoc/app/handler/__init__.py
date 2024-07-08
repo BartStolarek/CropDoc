@@ -1,0 +1,1 @@
+from app.handler import *  # noqa

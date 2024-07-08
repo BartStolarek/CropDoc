@@ -1,0 +1,44 @@
+# Example configuration file for a crop disease classification model
+
+model:
+  name: CropDiseaseClassifier
+  type: CNN  # Type of model (e.g., CNN, SVM, etc.)
+  architecture: 
+    - type: Conv2D
+      filters: 32
+      kernel_size: 3
+      activation: relu
+    - type: MaxPooling2D
+      pool_size: 2
+    - type: Flatten
+    - type: Dense
+      units: 64
+      activation: relu
+    - type: Dense
+      units: 10  # Number of disease classes
+      activation: softmax
+
+training:
+  epochs: 50
+  batch_size: 32
+  learning_rate: 0.001
+
+data:
+  dataset: CropDiseaseDataset
+  train_path: /path/to/train/data
+  validation_path: /path/to/validation/data
+  image_size: (224, 224)
+  augmentation:
+    - type: horizontal_flip
+    - type: rotation
+      rotation_range: 20
+    - type: brightness
+      brightness_range: (0.8, 1.2)
+
+evaluation:
+  metrics:
+    - accuracy
+    - precision
+    - recall
+  batch_size: 64
+
