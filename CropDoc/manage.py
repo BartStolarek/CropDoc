@@ -32,6 +32,13 @@ def format():
     print('Running {}'.format(yapf_cmd))
     subprocess.call(yapf_cmd, shell=True)
 
+@cli.command('train')
+def train():
+    """Runs the training script"""
+    from app.handler import handle_train_model
+    logger.debug("Training command called")
+    handle_train_model()
+
 
 @cli.command('runserver')
 @click.option('--debug',

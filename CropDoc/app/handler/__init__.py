@@ -1,1 +1,1 @@
-from app.handler import *  # noqa
+from app.handler.model import *  # noqa
