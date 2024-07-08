@@ -3,8 +3,12 @@
 Hello World!
 
 
-# Setup Instructions
-1. Clone the repository
+# CropDoc
+## Setup Instructions
+1. Make sure you're in 'CropDoc' Directory
+
+```cd CropDoc```
+
 2. Create a virtual environment
 
 ```python -m venv venv```
@@ -20,20 +24,43 @@ Hello World!
 ```pip install -r requirements.txt```
 
 
+## Running the server
+1. Make sure you're in 'CropDoc' Directory
+
+```cd CropDoc```
+
+2. Activate the environment
+    
+    ```source venv/bin/activate```(linux)
+        
+    ```venv\Scripts\activate```(windows)
+
+3. Run the server in development mode
+
+```python manage.py runserver```
+or
+```flask run```
 
 
-# Maintenance
+
+
+## Maintenance
 
 ## Adding a new python library
-1. Install the library using pip
+
+1. Make sure you are in the 'CropDoc' directory
+
+```cd CropDoc```
+
+2. Install the library using pip
 
 ```pip install <library-name>```
 
-2. Update the requirements.txt file
+3. Update the requirements.txt file
 
 ```pip freeze > requirements.txt```
 
-3. Commit the changes
+4. Commit the changes
 
 ```git add requirements.txt```
 
