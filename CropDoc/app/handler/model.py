@@ -12,7 +12,6 @@ def handle_train_model(example_arg: str = "example_arg"):
     Returns:
         _type_: _description_
     """
-
     logger.debug("Handle Train Model Called")
     
     # Load the dataset

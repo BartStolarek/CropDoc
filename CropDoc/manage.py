@@ -42,6 +42,28 @@ def train():
     from app.handler import handle_train_model
     logger.debug("Training command called")
     handle_train_model()
+    
+@cli.command('process')
+@click.option('--input', '-i', 'input_path', required=True, help='Input path for Data')
+@click.option('--output', '-o', 'output_path', required=True, help='Output path for Data')
+@click.option('--file', '-f', 'file', required=True, help='File of processing (the specific file in app/scripts/process/...)')
+@click.option('--method', '-m', 'method', required=True, help='Method of processing (the specific function in the category file)')
+@click.option('--kwargs', '-k', multiple=True, help='Additional keyword arguments as key=value pairs')
+def process(input_path, output_path, file, method, kwargs):
+    """A Command line command that will process the data
+    via the specified category file and method function and save the output to the output path
+
+    Args:
+        input_path (str): A path to the input data (absolute will be checked too)
+        output_path (str): Output path to CropDoc/data, ensure to include the directory name
+        category (str): The category of processing that coincides with the scripts/process
+        method (str): The method of processing that coincides with the scripts/process
+        kwargs (tuple): Additional keyword arguments to pass to the processing function
+    """
+    from app.handler import handle_process_data
+    kwargs_dict = dict(kv.split('=') for kv in kwargs)
+    result = handle_process_data(input_path, output_path, file, method, **kwargs_dict)
+    logger.info(f"Processing {'successful' if result else 'failed'}")
 
 
 @cli.command('runserver')

@@ -59,7 +59,14 @@ else:
         
         
 class AppConfig:
+    # Set ROOT_DIR to the parent directory of 'CropDoc'
+    ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    CROPDOC_DIR = os.path.join(ROOT_DIR, 'CropDoc')
+    APP_DIR = os.path.join(CROPDOC_DIR, 'app')
+    DATA_DIR = os.path.join(CROPDOC_DIR, 'data')
+    CONFIG_FILE = os.path.join(APP_DIR, 'config.env')
     APP_NAME = os.environ.get('APP_NAME', 'App_Name_Missing')
+    
     if os.environ.get('SECRET_KEY'):
         SECRET_KEY = os.environ.get('SECRET_KEY')
     else:
