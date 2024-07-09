@@ -50,6 +50,9 @@ def handle_process_data(input_path: str, output_path: str, file: str, method: st
     # Process the data
     try:
         result = method_func(input_path, output_path, **kwargs)
+    except TypeError as e:
+        logger.error(f"Potentially incorrect arguments in {method} function, process handler provides a 'input_path', 'output_path' and **kwargs, your process function should at least have those 3: {e}")
+        return False
     except Exception as e:
         logger.error(f"Error processing data: {e}")
         return False
