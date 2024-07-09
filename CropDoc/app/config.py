@@ -53,7 +53,7 @@ else:
         import_config_env(config_env_path)
     else:
         print(
-            'config.env file not found, please read README.md for config.env file structure'
+            '<root>/app/config.env file not found, please read README.md for config.env file structure'
         )
         
         
