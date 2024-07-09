@@ -11,6 +11,11 @@ from app.config import AppConfig
 app = create_app(config=AppConfig)
 
 
+@cli.command('hello')
+def hello():
+    """Prints hello world"""
+    print('Hello World')
+
 @click.group(cls=FlaskGroup, create_app=lambda: app)
 def cli():
     """Management script for the application."""
