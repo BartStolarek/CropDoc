@@ -5,23 +5,30 @@ Hello World!
 
 # CropDoc
 ## Setup Instructions
+
+Venv or Conda environment setup is recommended for running the CropDoc application.
+
+### Venv
 1. Make sure you're in 'CropDoc' Directory
 
 ```cd CropDoc```
 
 2. Create a virtual environment
 
-```python -m venv venv```
+- for venv:
+```python -m venv venv``` for venv
+- for conda: ```conda create --name myenv python=3.10.11```
 
 3. Activate the environment
     
-    ```source venv/bin/activate```(linux)
-        
-    ```venv\Scripts\activate```(windows)
+    - for venv:
+    ```source venv/bin/activate```(linux) ```venv\Scripts\activate```(windows)
+    - for conda: ```conda activate myenv```
 
 4. Install Requirements
 
-```pip install -r requirements.txt```
+- for venv: ```pip install -r requirements.txt```
+- for conda: ```conda install --file requirements.txt```
 
 
 ## Running the server
@@ -48,23 +55,27 @@ or
 
 ## Adding a new python library
 
+Use a venv or conda virtual environment, and make sure it is active
+
 1. Make sure you are in the 'CropDoc' directory
 
 ```cd CropDoc```
 
 2. Install the library using pip
 
-```pip install <library-name>```
+- for venv: ```pip install <library-name>```
+- for conda: ```conda install <library-name>```
 
 3. Update the requirements.txt file
 
-```pip freeze > requirements.txt```
+- for venv: ```pip freeze > requirements.txt```
+- for conda: ```conda list --export > requirements.txt```
 
 4. Commit the changes
 
 ```git add requirements.txt```
 
-```git commit -m "Added <library-name>"```
+```git commit -m "Added <library-name> to requirements.txt"```
 
 ```git push```
 
