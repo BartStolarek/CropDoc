@@ -5,7 +5,14 @@ from app.config import AppConfig
 from loguru import logger
 from app.utility.logger import setup_logger
 from pathlib import Path
+from flask_restx import Api
 
+main_api = Api(version='1.0',
+          title='CropDoc APIs',
+          description='TODO: Add in description',
+          doc='/doc/',
+          default='CropDoc',
+          default_label='CropDoc operations')
 
 def create_app(config=AppConfig):
     app = Flask(__name__)
@@ -19,6 +26,8 @@ def create_app(config=AppConfig):
     app.register_blueprint(health_blueprint)
     from app.api.model import model_blueprint
     app.register_blueprint(model_blueprint)
+    
+    main_api.init_app(app)
     
     # Get current files path, and parent's path
     current_path = Path(__file__).parent
