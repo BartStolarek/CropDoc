@@ -144,3 +144,13 @@ Note: If you've configured a different host or port, adjust the URL accordingly.
 This documentation is automatically updated when changes are made to the API, ensuring it always reflects the current state of the application.
 
 For developers: When adding new endpoints or modifying existing ones, make sure to use appropriate Flask-RESTX decorators and models to ensure they are correctly reflected in the Swagger UI.
+
+# Additional Information
+
+## Git Controls
+
+### Git Graph
+
+To view the git graph, you can use the following command:
+
+```git log --all --decorate --oneline --graph```
