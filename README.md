@@ -115,4 +115,32 @@ Here is the markdown for the table:
 | `python manage.py process`    | Processes data using a specified file and method (function).              | `-i, --input`  (required)<br>`-o, --output` (required)<br>`-f, --file` (required)<br>`-m, --method` (required)<br>`-k, --kwargs` (optional) |
 | `python manage.py runserver`  | Runs the development server.                                  | `--debug` (flag)<br>`--host` (default: '0.0.0.0')<br>`--port` (default: '5000') |
 
+## API Documentation
 
+CropDoc now includes automatically generated API documentation using Swagger UI. This provides an interactive interface to explore and test the API endpoints.
+
+### Accessing the API Documentation
+
+1. Ensure the CropDoc server is running (follow the "Running the server" instructions above).
+
+2. Open a web browser and navigate to:
+    
+    ```http://localhost:5000/doc/```
+
+Note: If you've configured a different host or port, adjust the URL accordingly.
+
+3. You will see the Swagger UI, which provides:
+- An overview of all API endpoints
+- Detailed information about each endpoint, including parameters and response models
+- The ability to test endpoints directly from the browser
+
+### Using the API Documentation
+
+- Browse through the available endpoints in the Swagger UI.
+- Click on an endpoint to expand its details.
+- You can see the expected parameters and response format for each endpoint.
+- Use the "Try it out" button to send requests directly from the browser and see the responses.
+
+This documentation is automatically updated when changes are made to the API, ensuring it always reflects the current state of the application.
+
+For developers: When adding new endpoints or modifying existing ones, make sure to use appropriate Flask-RESTX decorators and models to ensure they are correctly reflected in the Swagger UI.
