@@ -177,6 +177,11 @@ node_modules/
 
 # Local Data Files
 */data/
+*/Data/
+/data/
+/Data/
+/data
+/Data
 
 # Personal python scripts
 /python_scripts/
