@@ -1,13 +1,14 @@
 from loguru import logger
 import os
 from app.config import AppConfig
-from app.utility.path import directory_exists, join_path, file_exists, directory_is_empty, resolve_path, combine_path
-from app.service.data import import_images_in_flat_structure
+from app.utility.path import directory_exists, directory_is_empty, combine_path
+
 import importlib.util
+from CropDoc.app.utility.file import get_file_method
 
 
 def handle_process_data(input_path: str, output_path: str, file: str, method: str, **kwargs) -> bool:
-    logger.debug(f"Processing data from {input_path} to {output_path} using {file} (app/scripts/process/file) and {method} (function) with {kwargs}")
+    logger.debug(f"Processing data from {input_path} to {output_path} using {file} (app/process/file) and {method} (function) with {kwargs}")
     
     # Check path exists
     if not directory_exists(input_path):
@@ -23,29 +24,8 @@ def handle_process_data(input_path: str, output_path: str, file: str, method: st
     else:
         os.makedirs(output_path)
         
-    # Check if the file exists in app/scripts/process
-    process_file_path = resolve_path(join_path(AppConfig.APP_DIR + '/scripts/process/' + f"{file}.py"))
-    if not file_exists(process_file_path):
-        logger.error(f"File {file}.py does not exist in at {process_file_path}")
-        return False
-
-    # Import the file
-    try:
-        spec = importlib.util.spec_from_file_location("process_file", process_file_path)
-        process_file = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(process_file)
-    except Exception as e:
-        logger.error(f"Error importing {process_file_path}: {e}")
-        return False
-    
-    # Check if the method (function) exists in the file
-    if not hasattr(process_file, method):
-        logger.error(f"Method {method} does not exist in {file}.py")
-        return False
-    
-    # Get the method (function)
-    method_func = getattr(process_file, method)
-        
+    # Get the file method
+    method_func = get_file_method(directory='process', file_name=file, method=method)        
 
     # Process the data
     try:
