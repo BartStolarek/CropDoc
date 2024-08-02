@@ -8,7 +8,6 @@ Hello World!
 
 Venv or Conda environment setup is recommended for running the CropDoc application.
 
-### Venv
 1. Make sure you're in 'CropDoc' Directory
 
 ```cd CropDoc```
@@ -30,6 +29,20 @@ Venv or Conda environment setup is recommended for running the CropDoc applicati
 - for venv: ```pip install -r requirements.txt```
 - for conda: ```conda install --file requirements.txt```
 
+### Additional: VSC Python Interpreter Setup
+
+To setup python interpreter in visual studio code (so that installed packages dont cause any unresolved issues or warnings)
+
+1. Open the command palette in VSC (Ctrl+Shift+P)
+
+2. Type 'Python: Select Interpreter'
+
+3. Click 'enter interpreter path'
+
+4. Navigate to the 'CropDoc/venv/bin/' directory and select the python you'd like to use, i.e. 'python3.10'
+
+5. Restart your terminal
+
 
 ## Running the server
 1. Make sure you're in 'CropDoc' Directory
@@ -48,6 +61,7 @@ Venv or Conda environment setup is recommended for running the CropDoc applicati
 or
 ```flask run```
 
+## 
 
 
 
@@ -154,3 +168,5 @@ For developers: When adding new endpoints or modifying existing ones, make sure 
 To view the git graph, you can use the following command:
 
 ```git log --all --decorate --oneline --graph```
+
+## VSC Virtual Environment

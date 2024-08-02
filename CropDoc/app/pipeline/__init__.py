@@ -1,0 +1,1 @@
+from app.pipeline.resnet50v2 import *  # Noqa

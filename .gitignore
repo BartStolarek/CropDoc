@@ -176,12 +176,8 @@ node_modules/
 *.sqlite
 
 # Local Data Files
-*/data/
-*/Data/
-/data/
-/Data/
-/data
-/Data
+**/data/datasets/*
+**/data/datasets/*/
 
 # Personal python scripts
 /python_scripts/
