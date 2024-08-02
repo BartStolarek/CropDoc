@@ -16,17 +16,26 @@ import torch.optim as optim
 from tqdm import tqdm
 
 # Constants
-DATA_DIR = 'data/CCMT Dataset-Augmented'
-NUM_CROPS = 4
-NUM_STATES = 22
+DATA_DIR = 'CropDoc/data/datasets/CCMT Dataset-Augmented'
+NUM_CLASSES = 22
 NUM_EPOCHS = 2  # Number of passes through entire training dataset
 CV_FOLDS = 2  # Number of cross-validation folds
-BATCH_SIZE = 32 # Within each epoch data is split into batches
+BATCH_SIZE = 32  # Within each epoch data is split into batches
 LEARNING_RATE = 0.001
 VAL_SPLIT = 0.2
 CROSS_VALIDATE = True
 
 CROPS = ['Cashew', 'Cassava', 'Maize', 'Tomato']
+
+labels_classes = {
+    'crop': ['Cashew', 'Cassava', 'Maize', 'Tomato'],
+    'state': {
+        'Cashew': ['anthracnose', 'gumosis', 'healthy', 'leaf miner', 'red rust'],
+        'Cassava': ['bacterial blight', 'brown spot', 'green mite', 'healthy', 'mosaic'],
+        'Maize': ['fall armyworm', 'grasshopper', 'healthy', 'leaf beetle', 'leaf blight', 'leaf spot', 'streak virus'],
+        'Tomato': ['healthy', 'leaf blight', 'leaf curl', 'septoria leaf spot', 'verticillium wilt']
+    }
+}
 
 
 """
@@ -78,8 +87,8 @@ test_dataset = ConcatDataset(test_datasets)
 
 print("All classes:")
 individual_classes = sum([len(classes) for crop, classes in all_classes.items()])
-if individual_classes != NUM_STATES:
-    print(f"Number of classes does not match expected number of classes (NUM_CLASSES): {individual_classes} != {NUM_STATES}")
+if individual_classes != NUM_CLASSES:
+    print(f"Number of classes does not match expected number of classes (NUM_CLASSES): {individual_classes} != {NUM_CLASSES}")
     exit()
 print(f"Number of classes: {individual_classes}")
 pprint(all_classes)
@@ -104,7 +113,7 @@ EDA
 
 """
 
-os.makedirs('data/output/original', exist_ok=True)
+os.makedirs('CropDoc/data/output/original', exist_ok=True)
 
 # For each crop in train dataset, count and plot in histogram
 for dataset in train_datasets:
@@ -127,7 +136,7 @@ for dataset in train_datasets:
     plt.tight_layout()
     
     # Save the plot to output directory
-    plt.savefig(f'data/output/original/{dataset.root.split("/")[2]}_eda.png')
+    plt.savefig(f'CropDoc/data/output/original/{dataset.root.split("/")[2]}_eda.png')
     plt.close()
 
 
@@ -193,6 +202,29 @@ data_augmentation_transforms = {
 train_datasets = []
 test_datasets = []
 
+# Initialize datasets
+crop_datasets = {crop: [] for crop in labels_classes['crop']}
+state_datasets = {crop: {state: [] for state in labels_classes['state'][crop]} for crop in labels_classes['crop']}
+
+# Load datasets for each crop and state
+for crop in labels_classes['crop']:
+    crop_dir = os.path.join(DATA_DIR, crop)
+    
+    for state in labels_classes['state'][crop]:
+        state_dir = os.path.join(crop_dir, 'train_set', state)
+        
+        state_dataset = datasets.ImageFolder(state_dir, transform=data_augmentation_transforms['train'])
+        state_datasets[crop][state].append(state_dataset)
+        
+        # Append to crop datasets
+        crop_datasets[crop].append(state_dataset)
+
+# Concatenate datasets
+crop_datasets_concat = {crop: ConcatDataset(datasets) for crop, datasets in crop_datasets.items()}
+state_datasets_concat = {crop: {state: ConcatDataset(datasets) for state, datasets in states.items()} for crop, states in state_datasets.items()}
+
+
+
 # For each crop, load the training and test datasets with augmented transforms
 for crop in CROPS:
     crop_dir = os.path.join(DATA_DIR, crop)
@@ -229,29 +261,29 @@ model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
 num_ftrs = model.fc.in_features
 
 # Separate heads for crop and disease
-model.fc_crop = nn.Linear(num_ftrs, NUM_CROPS)
+model.fc = nn.Linear(num_ftrs, NUM_CLASSES)
 
 # Move the model to the correct device
 model = model.to(device)
 
-# Map the weights
-class_to_idx = {}
-idx = 0
-for crop in CROPS:
-    for class_ in all_classes[crop]:
-        if class_ not in class_to_idx:
-            class_to_idx[class_] = idx
-            idx += 1
+# # Map the weights
+# class_to_idx = {}
+# idx = 0
+# for crop in CROPS:
+#     for class_ in all_classes[crop]:
+#         if class_ not in class_to_idx:
+#             class_to_idx[class_] = idx
+#             idx += 1
 
-# Create a weight tensor
-weights = torch.ones(NUM_STATES)
-for crop in CROPS:
-    for class_, weight in class_weights[crop].items():
-        weights[class_to_idx[class_]] = weight
-weights = weights.to(device)
+# # Create a weight tensor
+# weights = torch.ones(NUM_CLASSES)
+# for crop in CROPS:
+#     for class_, weight in class_weights[crop].items():
+#         weights[class_to_idx[class_]] = weight
+# weights = weights.to(device)
 
 # Define loss function and optimiser
-criterion = nn.CrossEntropyLoss(weight=weights.to(device))
+criterion = nn.CrossEntropyLoss()
 optimiser = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # Define cross-validation iterator
