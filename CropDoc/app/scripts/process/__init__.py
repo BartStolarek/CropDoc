@@ -1,1 +1,0 @@
-from app.scripts.process.encode import *  # noqa

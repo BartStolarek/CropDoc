@@ -133,3 +133,10 @@ def get_cropdoc_directory():
 def get_app_directory():
     """Provide the path to the app directory"""
     return AppConfig.APP_DIR
+
+def find_directory(path, name):
+    """Find a directory with a given name in the path."""
+    for root, dirs, files in os.walk(resolve_path(path)):
+        if name in dirs:
+            return os.path.join(root, name)
+    return None

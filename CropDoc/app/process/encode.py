@@ -70,3 +70,5 @@ def grayscale_using_cv2_recursive(input_directory, output_directory, **kwargs):
 
     logger.info(f"Completed encoding images recursively")
     return True
+
+
