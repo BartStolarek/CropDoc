@@ -8,60 +8,133 @@ from app.utility.path import directory_exists
 from torch.utils.data import ConcatDataset
 from typing import Union
 import numpy as np
+from app.utility.path import find_directory
+import matplotlib.pyplot as plt  # Plotting library
+from typing import Dict, List
 
 
-def load_crop_ccmt_dataset_augmented(crops: list, transformers: dict) -> tuple:
-    """ Load the CCMT Dataset-Augmented for the specified crops and transformers.
+class SampleList(list):
+    def __init__(self, samples: List[Dict]):
+        super().__init__(samples)
+        self.data_map = self._create_data_map(samples)
 
-    Args:
-        crops (list): A list of crops to load the dataset for.
-        transformers (dict): A dictionary of torchvision.transformers.Compose with transformers within for the training and test sets.
-
-    Raises:
-        ValueError: If the transformers dictionary does not have keys 'train' and 'test'.
-        FileNotFoundError: If the dataset directory does not exist.
-
-    Returns:
-        tuple: A tuple containing the training datasets, test datasets and all classes for each crop.
-    """
-    if transformers.keys() != ['train', 'test']:
-        logger.error("Transformers must be a dictionary with keys 'train' and 'test'")
-        raise ValueError("Transformers must be a dictionary with keys 'train' and 'test'")
+    def _create_data_map(self, samples: List[Dict]) -> Dict[str, Dict[str, int]]:
+        unique_crops = set([sample['crop_label'] for sample in samples])
+        unique_states = set([sample['state_label'] for sample in samples])
+        
+        crop_counts = {crop: 0 for crop in unique_crops}
+        state_counts = {state: 0 for state in unique_states}
+        
+        for sample in samples:
+            crop_counts[sample['crop_label']] += 1
+            state_counts[sample['state_label']] += 1
+        
+        return {'crops': crop_counts, 'states': state_counts}
     
-    dataset_directory = os.path.join(DATA_DIR, 'datasets', 'CCMT Dataset-Augmented')
     
-    if not directory_exists(dataset_directory):
-        logger.error(f"Dataset directory {dataset_directory} does not exist")
-        raise FileNotFoundError(f"Dataset directory {dataset_directory} does not exist")
+class DatasetManager():
+    def __init__(self, root_path: str, transform: dict[str, Compose]):
+        self.root_path = root_path
+        self.transform = transform
+        self.samples = self._get_samples(root_path)
+        self.unique_crops = self._get_unique_crops(self.samples)
+        self.unique_states = self._get_unique_states(self.samples)
+        self.samples = self._add_idx_to_samples(self.samples)
+        self.data_map = self._create_data_map(self.samples)
+        self.train_samples = SampleList(self._train_samples())
+        self.test_samples = SampleList(self._test_samples())
     
-    train_datasets = []
-    test_datasets = []
-    all_classes = {}
+    def _get_samples(self, root_path: str):
+        samples = SampleList()
+        for root, directory, files in os.walk(root_path):
+            for file in files:
+                
+                # Get the file name
+                file_name = os.path.basename(file)
+                
+                # Convert file to sample format
+                image_dict = self._convert_file_to_sample(root, file_name)
+                
+                # Add sample to samples list
+                samples.append(image_dict)
+                
+        return samples
     
-    # For each crop, load the dataset
-    for crop in crops:
-        crop_dir = os.path.join(DATA_DIR, 'datasets', 'CCMT Dataset-Augmented', crop)
+    def _convert_file_to_sample(self, root: str, file_name: str):
+        # Remove the digits from the start of the file name
+        for idx, letter in enumerate(file_name):
+            if not letter.isdigit():
+                file_name = file_name[idx:]
+                
+        # Remove the extension .jpg from the file name
+        file_name = file_name.replace('.jpg', '')
         
-        # Get the crops training set
-        train_dataset = ImageFolder(os.path.join(crop_dir, 'train_set'), transform=transformers['train'])
+        # Split the file name up by underscores
+        labels = file_name.split('_')
         
-        # Get the crops test set
-        test_dataset = ImageFolder(os.path.join(crop_dir, 'test_set'), transform=transformers['test'])
+        # Get each label
+        crop_label = labels[0]
+        split = labels[1]
+        state_label = labels[2]
         
-        # Append the training and test datasets to the lists
-        train_datasets.append(train_dataset)
-        test_datasets.append(test_dataset)
+        # Keep healthy state labels separate between crops
+        if state_label == 'healthy':
+            state_label = crop_label + '_healthy'
         
-        # Check that all train dataset classes are the same as the test dataset classes
-        assert train_dataset.classes == test_dataset.classes, f"Train and test classes do not match for {crop}"
+        return {
+            'img_path': os.path.join(root, file_name),
+            'split': split,
+            'crop_label': crop_label,
+            'state_label': state_label
+        }
+    
+    def _get_unique_crops(self, samples):
+        return set([sample['crop_label'] for sample in samples])
+    
+    def _get_unique_states(self, samples):
+        return set([sample['state_label'] for sample in samples])
         
-        crop_classes = train_dataset.classes
-        all_classes[crop] = crop_classes
-        
-    return train_datasets, test_datasets, all_classes
+    def _add_idx_to_samples(self, samples):
+        for sample in samples:
+            sample['crop_idx'] = self.unique_crops.index(sample['crop_label'])
+            sample['state_idx'] = self.unique_states.index(sample['state_label'])
+    
+    def __len__(self):
+        return len(self.samples)
+    
+    def __getitem__(self, idx):
+        sample = self.samples[idx]
+        img = plt.imread(sample['img_path'])
+        if self.transform:
+            img = self.transform[sample['split']](img)
+        return img, sample['crop_idx'], sample['state_idx']
 
+    def _train_samples(self) -> List[Dict]:
+        return [sample for sample in self.samples if sample['split'] == 'train']
+    
+    def _test_samples(self) -> List[Dict]:
+        return [sample for sample in self.samples if sample['split'] == 'test']
+    
+    def _create_data_map(self, split: str = None) -> Dict[str, Dict[str, int]]:
+        if split:
+            samples = [sample for sample in self.samples if sample['split'] == split]
+        else:
+            samples = self.samples
+        
+        crop_counts = {crop: 0 for crop in self.unique_crops}
+        state_counts = {state: 0 for state in self.unique_states}
+        
+        for sample in samples:
+            crop_counts[sample['crop_label']] += 1
+            state_counts[sample['state_label']] += 1
+        
+        return {'crops': crop_counts, 'states': state_counts}
+    
+    
+        
+        
 
-class ResNet50V2DatasetManager():
+class ResNet50V2Subset():
     def __init__(self, root_path: str, transform: Compose):
         self.dataset = ImageFolder(root_path, transform=transform)
         self.name = self.dataset.root.split("/")[-1]
@@ -69,6 +142,8 @@ class ResNet50V2DatasetManager():
         self.class_count = self.get_class_count()
         self.sample_count = self.get_sample_count()
         logger.info(f"Dataset {self.name} loaded with {self.class_count} classes and {self.sample_count} samples")
+    
+    
     
     def __str__(self):
         return f"{self.name} Dataset Manager"
@@ -132,91 +207,3 @@ class ResNet50V2DatasetManager():
         return count
 
 
-class ResNet50V2ConcatDatasetManager():
-    """ Class for managing multiple datasets as a single dataset.
-    """
-    def __init__(self, datasets: list[ResNet50V2DatasetManager], name: str):
-
-        if not isinstance(datasets, list[ResNet50V2DatasetManager]):
-            logger.error("Datasets must be a list of DatasetManager objects")
-            raise ValueError("Datasets must be a list of DatasetManager objects")
-        
-        self.datasets = datasets
-        self.concat_dataset = ConcatDataset(datasets)
-        self.name = name
-        self.class_map = self.map_datasets_to_dict()
-        self.level_counts = self.get_class_count_per_level()
-        self.sample_count = self.get_sample_count()
-        
-    def map_datasets_to_dict(self) -> dict:
-        """ Map a list of datasets to a dictionary of class counts.
-
-        Returns:
-            dict: A dictionary of class counts for each dataset in the list.
-        """
-        logger.debug(f"Mapping datasets to dictionary: {self.name}")
-        try:
-            class_map = {}
-            for dataset in self.datasets:
-                class_map[dataset.name] = dataset.class_map
-            
-            logger.info(f"Class map for {self.name}: {class_map}")
-            return class_map
-        
-        except Exception as e:
-            logger.error(f"Error mapping datasets to dictionary: {e}")
-            return {}
-        
-    def get_class_count_per_level(self, dictionary: dict = None, level=1, level_counts=None) -> dict:
-        """ Get the count of classes per level in the dataset.
-
-        Args:
-            dictionary (dict, optional): The dictionary to count the classes of. Defaults to None.
-            level (int, optional): The level of the dictionary. Defaults to 1.
-            level_counts (_type_, optional): The dictionary to store the counts in. Defaults to None.
-
-        Returns:
-            dict: A dictionary of class counts per level.
-        """
-        try:
-            logger.debug(f"Getting class count per level for {self.name}")
-            if level_counts is None:
-                level_counts = {}
-                
-            if dictionary is None:
-                dictionary = self.class_map
-
-            for key, value in dictionary.items():
-                if isinstance(value, dict):
-                    self.get_class_count_per_level(value, level + 1, level_counts)
-                else:
-                    if level in level_counts:
-                        level_counts[level] += 1
-                    else:
-                        level_counts[level] = 1
-            logger.info(f"Class count per level for {self.name}: {level_counts}")
-            return level_counts
-        except Exception as e:
-            logger.error(f"Error getting class count per level: {e}")
-            return {}
-    
-    def get_sample_count(self) -> int:
-        """ Get the sample count for the dataset.
-
-        Raises:
-            ValueError: If the sample count does not match the class count.
-
-        Returns:
-            int: The sample count for the dataset.
-        """
-        logger.debug(f"Getting sample count for {self.name}")
-        try:
-            count = sum([dataset.get_sample_count() for dataset in self.datasets])
-            if count != len(self.datasets):
-                logger.error(f"Sample count does not match class count: {count} != {len(self.datasets)}")
-                raise ValueError(f"Sample count does not match class count: {count} != {len(self.datasets)}")
-            logger.info(f"Sample count for dataset {self.name}: {count}")
-            return count
-        except Exception as e:
-            logger.error(f"Error getting sample count: {e}")
-            return 0
