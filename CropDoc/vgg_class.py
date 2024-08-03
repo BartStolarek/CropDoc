@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 
 class vgg16(nn.Module):
-    def __init__(self, num_classes: int | tuple, dropout: int):
+    def __init__(self, num_classes: int | tuple, dropout: float = 0.5):
         super(vgg16, self).__init__()
 
         self.classifier_num = type(num_classes)
-        self.features = nn.Sequential(self.convLayer(1,64),
+        self.features = nn.Sequential(self.convLayer(3,64),
                                       self.convLayer(64,64),
                                       nn.MaxPool2d((2,2),(2,2)),
                                       self.convLayer(64, 128),
@@ -48,12 +48,16 @@ class vgg16(nn.Module):
                       nn.BatchNorm2d(layer_out),
                       nn.ReLU())
     
-    def classifier(self, num_classes: int, dropout: int) -> nn.Sequential:
+    def classifier(self, num_classes: int, dropout:float) -> nn.Sequential:
         return nn.Sequential(self.linLayer(7*7*512, 4096, dropout),
                       self.linLayer(4096, 4096, dropout),
                       nn.Linear(4096, num_classes))
 
-    def linLayer(self, layer_in: int, layer_out: int, dropout: int) -> nn.Sequential:
+    def linLayer(self, layer_in: int, layer_out: int, dropout: float) -> nn.Sequential:
         return nn.Sequential(nn.Linear(layer_in, layer_out),
                       nn.ReLU(),
                       nn.Dropout(dropout))
+    
+
+
+vgg = vgg16(10)
