@@ -24,16 +24,45 @@ training:
   learning_rate: 0.001
 
 data:
-  dataset: CropDiseaseDataset
-  train_path: /path/to/train/data
-  validation_path: /path/to/validation/data
-  image_size: (224, 224)
-  augmentation:
-    - type: horizontal_flip
-    - type: rotation
-      rotation_range: 20
-    - type: brightness
-      brightness_range: (0.8, 1.2)
+  transformers:
+    train:
+      - type: RandomResizedCrop
+        size: 224
+      - type: RandomHorizontalFlip
+      - type: ColorJitter
+        brightness: 0.2
+        contrast: 0.2
+        saturation: 0.2
+        hue: 0.1
+      - type: RandomRotation
+        degrees: 20
+      - type: RandomAffine
+        degrees: 0
+        translate: [0.1, 0.1]
+      - type: ToTensor
+      - type: Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    val:
+      - type: Resize
+        size: 256
+      - type: CenterCrop
+        size: 224
+      - type: ToTensor
+      - type: Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    test:
+      - type: Resize
+        size: 256
+      - type: CenterCrop
+        size: 224
+      - type: ToTensor
+      - type: Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+      
+
 
 evaluation:
   metrics:

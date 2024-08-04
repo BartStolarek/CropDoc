@@ -4,7 +4,7 @@ from app.config import AppConfig
 from app.utility.path import directory_exists, directory_is_empty, combine_path
 
 import importlib.util
-from CropDoc.app.utility.file import get_file_method
+from app.utility.file import get_file_method
 
 
 def handle_process_data(input_path: str, output_path: str, file: str, method: str, **kwargs) -> bool:

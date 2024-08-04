@@ -1,4 +1,4 @@
-from app.model.example_py_model import CropDiseaseClassifierConfig
+
 from datetime import datetime
 from loguru import logger
 

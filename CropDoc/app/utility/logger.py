@@ -7,7 +7,7 @@ from datetime import datetime
 from loguru import logger
 
 # Local Imports
-from app.config import CROPDOC_DIR
+from app.config import AppConfig
 
 
 def setup_logger():
@@ -33,14 +33,14 @@ def setup_logger():
                level=logging_level)
 
     # Check if directory exists
-    if not os.path.exists(f"{CROPDOC_DIR}/data/logs"):
-        os.makedirs(f"{CROPDOC_DIR}/data/logs")
+    if not os.path.exists(f"{AppConfig.CROPDOC_DIR}/data/logs"):
+        os.makedirs(f"{AppConfig.CROPDOC_DIR}/data/logs")
 
     now = datetime.now()
     now_string = now.strftime("%Y-%m-%d_%H-%M-%S")
     # Add a log file
     logger.add(
-        f"{CROPDOC_DIR}/data/logs/CropDoc-{now_string}.log",
+        f"{AppConfig.CROPDOC_DIR}/data/logs/CropDoc-{now_string}.log",
         diagnose=diagnose,
         retention="7 days",
         enqueue=True,

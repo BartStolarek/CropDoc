@@ -1,11 +1,10 @@
-from CropDoc.app.service.data import ResNet50V2DatasetManager, ResNet50V2ConcatDatasetManager
-
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 from torchvision import models
 from tqdm import tqdm
 import os
+from app.service.data import DatasetManager, TransformerManager
+from pprint import pprint
 
 # Example usage:
 config = {
@@ -19,10 +18,31 @@ config = {
 }
 
 
+def run(dataset_path: str, config: dict):
+    
+    pprint(config)
+    
+    transformer_manager = TransformerManager(config['data']['transformers'])
+    
+    dataset_manager = DatasetManager(dataset_path, transform=transformer_manager.transformers)
+    
+    print(dataset_manager)
 
 
 class BasePipeline:
-    def __init__(self, config,):
+    """
+    Base class for all pipelines. The pipeline is responsible for:
+    - Loading the dataset
+    - Initialising the loss function/s
+    - Initialising the optimiser/s
+    - Initialising the model
+    - Training the model using the dataset
+    - Validating the model using cross validation
+    - Testing the model using the test dataset
+    - Saving the model
+    - Evaluating the model
+    """
+    def __init__(self, config, dataset: DatasetManager):
         self.config = config
         
         if 'model_name' not in self.config.keys():
@@ -30,6 +50,14 @@ class BasePipeline:
         
         if 'learning_rate' not in self.config.keys():
             raise ValueError("Learning rate not specified in config")
+        
+        self.dataset = dataset
+        
+        # Initialise the loss function
+        self.criterion = self._get_loss_function()
+        
+        # Initialise the optimiser
+        self.optimizer = self._get_optimizer()
         
         # Setup the device to use for training
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -40,13 +68,6 @@ class BasePipeline:
         # Move the model to the device
         self.model = self.model.to(self.device)
         
-        # Initialise the loss function
-        self.criterion = self._get_loss_function()
-        
-        # Initialise the optimiser
-        self.optimizer = self._get_optimizer()
-        
-
     def _create_model(self):
         model_name = self.config['model_name'].lower()
 
@@ -86,7 +107,7 @@ class BasePipeline:
         pass
     
     def load_datasets(self):
-        
+        pass
 
     def train_epoch(self):
         pass
@@ -118,11 +139,6 @@ class BasePipeline:
     def plot_confusion_matrix(self):
         pass
 
-pipeline = BasePipeline(config)
-pipeline.train()
-pipeline.test()
-pipeline.save_model()
-
 
 class ResNet50V2Pipeline():
     
@@ -135,8 +151,6 @@ class ResNet50V2Pipeline():
         """
         self.crops = crops
         self.transformers = transformers
-        self.dataset_manager = ResNet50V2DatasetManager(crops, transformers)
-        self.concat_dataset_manager = ResNet50V2ConcatDatasetManager(crops, transformers)
         
     def load_datasets(self):
         """ Load the ResNet50V2 datasets for the specified crops and transformers. """
@@ -148,7 +162,8 @@ class ResNet50V2Pipeline():
         
     def load_model(self):
         """ Load the ResNet50V2 model. """
-        self.model = ResNet50V2()
+        # self.model = ResNet50V2()
+        pass
         
     def train_model(self):
         """ Train the ResNet50V2 model. """

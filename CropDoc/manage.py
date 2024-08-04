@@ -36,6 +36,19 @@ def format():
     print('Running {}'.format(yapf_cmd))
     subprocess.call(yapf_cmd, shell=True)
 
+
+@cli.command('pipeline')
+@click.option('--file', '-f', 'file', required=True, help='File of pipeline (the specific file in app/scripts/pipeline/...)')
+@click.option('--method', '-m', 'method', required=True, help='Method of pipeline (the specific function in the category file)')
+@click.option('--dataset', '-d', 'dataset', required=True, help='Dataset path to run the pipeline on')
+@click.option('--config', '-c', 'config', help='Model configuration file for pipeline')
+def pipeline(file, method, dataset, config):
+    """Runs the pipeline script"""
+    from app.handler import handle_pipeline
+    logger.debug("Pipeline command called")
+    result = handle_pipeline(file=file, method=method, dataset_path=dataset, model_config=config)
+    logger.info(f"Pipeline command {'successful' if result else 'failed'}")
+
 @cli.command('train')
 def train():
     """Runs the training script"""
