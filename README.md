@@ -29,6 +29,15 @@ Venv or Conda environment setup is recommended for running the CropDoc applicati
 - for venv: ```pip install -r requirements.txt```
 - for conda: ```conda install --file requirements.txt```
 
+5. Create a ..CropDoc/app/config.env file with the following content:
+```
+APP_NAME='CropDoc'
+SECRET_KEY='secretkey'
+FLASK_APP=manage.py
+FLASK_ENV=development
+LOGGING_LEVEL=DEBUG
+```
+
 ### Additional: VSC Python Interpreter Setup
 
 To setup python interpreter in visual studio code (so that installed packages dont cause any unresolved issues or warnings)
