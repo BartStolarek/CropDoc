@@ -27,7 +27,7 @@ Mako==1.3.5
 MarkupSafe==2.1.5
 matplotlib==3.9.1
 mpmath==1.3.0
-networkx==3.3
+networkx
 numpy==2.0.0
 nvidia-cublas-cu12==12.1.3.1
 nvidia-cuda-cupti-cu12==12.1.105
