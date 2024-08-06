@@ -296,7 +296,11 @@ train_losses = []
 train_accuracies = []
 # Training Loop
 for epoch in range(NUM_EPOCHS):
+    
+    # Set model to training mode
     model.train()
+    
+    # Initialize metrics
     running_loss = 0.0
     correct = 0
     total = 0

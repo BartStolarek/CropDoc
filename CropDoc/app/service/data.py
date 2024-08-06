@@ -1,5 +1,6 @@
 import os
 import shutil
+import torch
 from loguru import logger
 from torchvision.datasets import ImageFolder
 from torchvision.transforms import Compose
@@ -11,6 +12,7 @@ import numpy as np
 from app.utility.path import find_directory
 import matplotlib.pyplot as plt  # Plotting library
 from typing import Dict, List
+from PIL import Image
 import re
 from torchvision.transforms import (
     Compose,
@@ -99,6 +101,9 @@ class DatasetManager():
         self.samples = self._add_idx_to_samples(self.samples)
         self.train_samples = SampleList(self._train_samples())
         self.test_samples = SampleList(self._test_samples())
+        self.samples = self._add_idx_to_samples(self.samples)
+        self.samples = self._add_crop_idx_to_samples(self.samples)
+        self.samples = self._add_state_idx_to_samples(self.samples)
     
     def __str__(self):
         string = f"DatasetManager\n" + \
@@ -152,6 +157,9 @@ class DatasetManager():
         # Keep healthy state labels separate between crops
         if state_label == 'healthy':
             state_label = crop_label + ' healthy'
+            
+        if split == 'valid':
+            split = 'test'
         
         return {
             'img_path': os.path.join(root, file_name),
@@ -165,33 +173,71 @@ class DatasetManager():
     
     def _get_unique_states(self, samples: SampleList) -> List[str]:
         return list(set([sample['state_label'] for sample in samples]))
-        
-    def _add_idx_to_samples(self, samples: SampleList) -> SampleList:
-        crop_to_idx = {crop: idx for idx, crop in enumerate(self.unique_crops)}
-        state_to_idx = {state: idx for idx, state in enumerate(self.unique_states)}
-        
-        for sample in samples:
-            sample['crop_idx'] = crop_to_idx[sample['crop_label']]
-            sample['state_idx'] = state_to_idx[sample['state_label']]
-        
-        return samples
-            
+       
     def __len__(self):
         return len(self.samples)
     
-    def __getitem__(self, idx):
-        sample = self.samples[idx]
-        img = plt.imread(sample['img_path'])
-        if self.transform:
-            img = self.transform[sample['split']](img)
-        return img, sample['crop_idx'], sample['state_idx']
+    def _add_idx_to_samples(self, samples: SampleList) -> SampleList:
+        for idx, sample in enumerate(samples):
+            sample['idx'] = idx
+        return samples
+    
+    def _add_crop_idx_to_samples(self, samples: SampleList) -> SampleList:
+        for idx, sample in enumerate(samples):
+            sample['crop_idx'] = self.unique_crops.index(sample['crop_label'])
+        return samples
+    
+    def _add_state_idx_to_samples(self, samples: SampleList) -> SampleList:
+        for idx, sample in enumerate(samples):
+            sample['state_idx'] = self.unique_states.index(sample['state_label'])
+        return samples
 
+    def __getitem__(self, idx):
+        
+        sample = self.samples[idx]
+        img_path = sample['img_path']
+        split = sample['split']
+        crop_label = sample['crop_label']
+        state_label = sample['state_label']
+        
+        image = plt.imread(img_path).convert('RGB')
+        if split in self.transform.keys():
+            image = self.transform[split](image)
+        
+        print("here")
+        # Convert labels to appropriate tensor types
+        crop_label = torch.tensor(self.unique_crops.index(sample['crop_label']), dtype=torch.long)
+        state_label = torch.tensor(self.unique_states.index(sample['state_label']), dtype=torch.long)
+        
+        return image, crop_label, state_label
+    
     def _train_samples(self) -> List[Dict]:
         return [sample for sample in self.samples if sample['split'] == 'train']
     
     def _test_samples(self) -> List[Dict]:
-        return [sample for sample in self.samples if sample['split'] == 'valid']
+        return [sample for sample in self.samples if sample['split'] == 'test']
 
+    
+    def load_image_from_path(self, img_path: List[str], split: str):
+        """
+        Loads images from a list of image paths and applies transformations.
+
+        Args:
+            img_paths (List[str]): List of image paths to load.
+            split (str): Indicates the split type ('train', 'val', 'test').
+
+        Returns:
+            List[torch.Tensor]: List of transformed images as PyTorch tensors.
+        """
+        image = Image.open(img_path).convert('RGB')
+        if split in self.transform.keys():
+            transformer = self.transform[split]
+            image = transformer(image)
+        
+        return image
+            
+
+        
 
 class TransformerManager():
     def __init__(self, transforms: dict[str, list[dict]]):
