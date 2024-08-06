@@ -95,7 +95,7 @@ class DatasetManager():
     def __init__(self, root_path: str, transform: dict[str, Compose]):
         self.root_path = root_path
         self.transform = transform
-        self.samples = self._get_samples(root_path)
+        self.samples = self._get_samples(root_path) # list of samples {img_path, split, crop_label, state_label, idx, crop_idx, state_idx}
         self.unique_crops = self._get_unique_crops(self.samples)
         self.unique_states = self._get_unique_states(self.samples)
         self.samples = self._add_idx_to_samples(self.samples)

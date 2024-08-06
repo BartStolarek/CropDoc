@@ -211,8 +211,8 @@ for crop in labels_classes['crop']:
     crop_dir = os.path.join(DATA_DIR, crop)
     
     for state in labels_classes['state'][crop]:
-        state_dir = os.path.join(crop_dir, 'train_set', state)
-        
+        state_dir = os.path.join(crop_dir, 'train_set')
+
         state_dataset = datasets.ImageFolder(state_dir, transform=data_augmentation_transforms['train'])
         state_datasets[crop][state].append(state_dataset)
         

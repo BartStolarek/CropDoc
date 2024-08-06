@@ -198,87 +198,61 @@ class ResNet50v2Pipeline:
 
     def train(self):
         logger.debug("Training ResNet50v2 Model")
-        # Initialise KFold and metrics
         kf = KFold(n_splits=self.config['training']['cv_folds'], shuffle=True, random_state=42)
         
-        train_losses_crop = []
-        train_losses_state = []
-        train_accuracies_crop = []
-        train_accuracies_state = []
-        val_losses_crop = []
-        val_losses_state = []
-        val_accuracies_crop = []
-        val_accuracies_state = []
-        
-        # Run each epoch
-        for epoch in range(self.config['training']['epochs']):
+        epoch_pbar = trange(self.config['training']['epochs'], desc="Epochs")
+        for epoch in epoch_pbar:
             epoch_metrics = self.train_epoch(kf)
             
-            # Collect metrics
-            train_losses_crop.append(epoch_metrics['train_loss_crop'])
-            train_losses_state.append(epoch_metrics['train_loss_state'])
-            train_accuracies_crop.append(epoch_metrics['train_acc_crop'])
-            train_accuracies_state.append(epoch_metrics['train_acc_state'])
-            val_losses_crop.append(epoch_metrics['val_loss_crop'])
-            val_losses_state.append(epoch_metrics['val_loss_state'])
-            val_accuracies_crop.append(epoch_metrics['val_acc_crop'])
-            val_accuracies_state.append(epoch_metrics['val_acc_state'])
-            
-            # Log epoch results
-            logger.info(f"Epoch {epoch+1}/{self.config['training']['epochs']} - "
-                        f"Train Loss: {epoch_metrics['train_loss_crop']:.4f}/{epoch_metrics['train_loss_state']:.4f}, "
-                        f"Train Acc: {epoch_metrics['train_acc_crop']:.4f}/{epoch_metrics['train_acc_state']:.4f}, "
-                        f"Val Loss: {epoch_metrics['val_loss_crop']:.4f}/{epoch_metrics['val_loss_state']:.4f}, "
-                        f"Val Acc: {epoch_metrics['val_acc_crop']:.4f}/{epoch_metrics['val_acc_state']:.4f}")
+            # Update epoch progress bar with metrics
+            epoch_pbar.set_postfix({
+                'Train Loss Crop': f"{epoch_metrics['train_loss_crop']:.4f}",
+                'Train Loss State': f"{epoch_metrics['train_loss_state']:.4f}",
+                'Train Acc Crop': f"{epoch_metrics['train_acc_crop']:.4f}",
+                'Train Acc State': f"{epoch_metrics['train_acc_state']:.4f}",
+                'Val Loss Crop': f"{epoch_metrics['val_loss_crop']:.4f}",
+                'Val Loss State': f"{epoch_metrics['val_loss_state']:.4f}",
+                'Val Acc Crop': f"{epoch_metrics['val_acc_crop']:.4f}",
+                'Val Acc State': f"{epoch_metrics['val_acc_state']:.4f}"
+            })
         
         logger.info("Training Complete")
 
     def train_epoch(self, kf):
-        logger.debug("Training Epoch")
-        # Set model to training mode
         self.model.train()
         
-        # Initialise metrics
-        epoch_train_loss_crop = 0
-        epoch_train_loss_state = 0
-        epoch_train_acc_crop = 0
-        epoch_train_acc_state = 0
-        epoch_val_loss_crop = 0
-        epoch_val_loss_state = 0
-        epoch_val_acc_crop = 0
-        epoch_val_acc_state = 0
+        epoch_metrics = {
+            'train_loss_crop': 0, 'train_loss_state': 0,
+            'train_acc_crop': 0, 'train_acc_state': 0,
+            'val_loss_crop': 0, 'val_loss_state': 0,
+            'val_acc_crop': 0, 'val_acc_state': 0
+        }
         
-        for fold_idx, (train_idx, val_idx) in enumerate(kf.split(self.dataset.train_samples)):
+        fold_pbar = tqdm(enumerate(kf.split(self.dataset.train_samples)), 
+                         total=self.config['training']['cv_folds'], 
+                         desc="Folds", leave=False)
+        
+        for fold_idx, (train_idx, val_idx) in fold_pbar:
             fold_metrics = self.train_fold(fold_idx, train_idx, val_idx)
             
-            # Accumulate metrics
-            epoch_train_loss_crop += fold_metrics['train_loss_crop']
-            epoch_train_loss_state += fold_metrics['train_loss_state']
-            epoch_train_acc_crop += fold_metrics['train_acc_crop']
-            epoch_train_acc_state += fold_metrics['train_acc_state']
-            epoch_val_loss_crop += fold_metrics['val_loss_crop']
-            epoch_val_loss_state += fold_metrics['val_loss_state']
-            epoch_val_acc_crop += fold_metrics['val_acc_crop']
-            epoch_val_acc_state += fold_metrics['val_acc_state']
+            for key in epoch_metrics:
+                epoch_metrics[key] += fold_metrics[key]
+            
+            fold_pbar.set_postfix({
+                'Train Loss Crop': f"{fold_metrics['train_loss_crop']:.4f}",
+                'Train Acc Crop': f"{fold_metrics['train_acc_crop']:.4f}",
+                'Val Loss Crop': f"{fold_metrics['val_loss_crop']:.4f}",
+                'Val Acc Crop': f"{fold_metrics['val_acc_crop']:.4f}"
+            })
         
-        # Average metrics across folds
         num_folds = self.config['training']['cv_folds']
-        logger.info("Completed Epoch")
-        return {
-            'train_loss_crop': epoch_train_loss_crop / num_folds,
-            'train_loss_state': epoch_train_loss_state / num_folds,
-            'train_acc_crop': epoch_train_acc_crop / num_folds,
-            'train_acc_state': epoch_train_acc_state / num_folds,
-            'val_loss_crop': epoch_val_loss_crop / num_folds,
-            'val_loss_state': epoch_val_loss_state / num_folds,
-            'val_acc_crop': epoch_val_acc_crop / num_folds,
-            'val_acc_state': epoch_val_acc_state / num_folds
-        }
+        for key in epoch_metrics:
+            epoch_metrics[key] /= num_folds
+        
+        return epoch_metrics
         
 
     def train_fold(self, fold_idx, train_idx, val_idx):
-        logger.debug(f"Training Fold {fold_idx}")
-        # Initialise the data loaders
         train_loader, val_loader = self._get_data_loaders(train_idx, val_idx)
         
         train_loss_crop = 0
@@ -287,7 +261,10 @@ class ResNet50v2Pipeline:
         train_correct_state = 0
         train_total = 0
         
-        for batch_idx, batch in enumerate(train_loader):
+        batch_pbar = tqdm(enumerate(train_loader), total=len(train_loader), 
+                          desc="Batches", leave=False)
+        
+        for batch_idx, batch in batch_pbar:
             crop_labels = batch['crop_label']
             crop_label_idx = batch['crop_idx']
             idxs = batch['idx']
@@ -311,10 +288,16 @@ class ResNet50v2Pipeline:
             train_correct_crop += batch_metrics['correct_crop']
             train_correct_state += batch_metrics['correct_state']
             train_total += batch_metrics['total']
+            
+            batch_pbar.set_postfix({
+                'Loss Crop': f"{batch_metrics['loss_crop']:.4f}",
+                'Loss State': f"{batch_metrics['loss_state']:.4f}",
+                'Acc Crop': f"{batch_metrics['correct_crop'] / batch_metrics['total']:.4f}",
+                'Acc State': f"{batch_metrics['correct_state'] / batch_metrics['total']:.4f}"
+            })
         
-        # Validate the fold
         val_loss_crop, val_loss_state, val_acc_crop, val_acc_state = self.validate(val_loader)
-        logger.info(f"Fold {fold_idx} - complete")
+        
         return {
             'train_loss_crop': train_loss_crop / len(train_loader),
             'train_loss_state': train_loss_state / len(train_loader),
@@ -328,7 +311,6 @@ class ResNet50v2Pipeline:
         
 
     def train_batch(self, batch_idx, inputs, crop_labels, state_labels):
-        logger.debug(f"Training Batch {batch_idx}")
         # Convert inputs to PyTorch tensor if it's not already
         
         inputs = inputs.clone().detach().requires_grad_(True)
@@ -365,7 +347,6 @@ class ResNet50v2Pipeline:
         correct_crop = (predicted_crop == crop_labels).sum().item()
         correct_state = (predicted_state == state_labels).sum().item()
         total = crop_labels.size(0)
-        logger.info(f"Batch {batch_idx} - complete")
         
         return {
             'loss_crop': loss_crop.item(),

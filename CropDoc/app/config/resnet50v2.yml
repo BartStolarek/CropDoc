@@ -15,7 +15,7 @@ model:
     - activation_functions: ReLU
     - input_output_dimensions: 224x224x3
   training:
-    epochs: 5
+    epochs: 2
     cv_folds: 5
     batch_size: 32
     learning_rate: 0.001
@@ -28,7 +28,7 @@ model:
       type: CrossEntropyLoss
       params:
   data:
-    transformers:
+    transformers: # List of data transformers can be found here: https://pytorch.org/vision/0.9/transforms.html
       train:
         - type: RandomResizedCrop
           size: 224
