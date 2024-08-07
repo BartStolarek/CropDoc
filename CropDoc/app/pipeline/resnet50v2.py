@@ -304,6 +304,17 @@ class ResNet50v2Pipeline:
             })
         
         logger.info("Training Complete")
+        
+        # Export epoch metrics to txt file
+        with open('epoch_metrics.txt', 'w') as f:
+            f.write('Epoch Train Crop Loss\n')
+            f.write(str(self.epoch_train_crop_loss))
+            f.write('\n\nEpoch Train State Loss\n')
+            f.write(str(self.epoch_train_state_loss))
+            f.write('\n\nEpoch Val Crop Loss\n')
+            f.write(str(self.epoch_val_crop_loss))
+            f.write('\n\nEpoch Val State Loss\n')
+            f.write(str(self.epoch_val_state_loss))
 
     def train_epoch(self, kf):
         
