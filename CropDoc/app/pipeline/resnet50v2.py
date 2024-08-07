@@ -219,7 +219,6 @@ class ResNet50v2Pipeline:
         logger.info("Training Complete")
 
     def train_epoch(self, kf):
-        self.model.train()
         
         epoch_metrics = {
             'train_loss_crop': 0, 'train_loss_state': 0,
@@ -233,16 +232,25 @@ class ResNet50v2Pipeline:
                          desc="Folds", leave=False)
         
         for fold_idx, (train_idx, val_idx) in fold_pbar:
-            fold_metrics = self.train_fold(fold_idx, train_idx, val_idx)
+            
+            train_loader, val_loader = self._get_data_loaders(train_idx, val_idx)
+            
+            fold_train_metrics = self.train_fold(fold_idx, train_loader)
+            fold_val_metrics = self.validate_fold(fold_idx, val_loader)
             
             for key in epoch_metrics:
-                epoch_metrics[key] += fold_metrics[key]
+                if 'train' in key:
+                    epoch_metrics[key] += fold_train_metrics[key]
+                elif 'val' :
+                    epoch_metrics[key] += fold_val_metrics[key]
+                else:
+                    raise ValueError(f"Unknown key: {key}")
             
             fold_pbar.set_postfix({
-                'Train Loss Crop': f"{fold_metrics['train_loss_crop']:.4f}",
-                'Train Acc Crop': f"{fold_metrics['train_acc_crop']:.4f}",
-                'Val Loss Crop': f"{fold_metrics['val_loss_crop']:.4f}",
-                'Val Acc Crop': f"{fold_metrics['val_acc_crop']:.4f}"
+                'Train Loss Crop': f"{fold_train_metrics['train_loss_crop'] * 100:.2f}%",
+                'Train Acc Crop': f"{fold_train_metrics['train_acc_crop'] * 100:.2f}%",
+                'Val Loss Crop': f"{fold_train_metrics['val_loss_crop'] * 100:.2f}%",
+                'Val Acc Crop': f"{fold_train_metrics['val_acc_crop'] * 100:.2f}%"
             })
         
         num_folds = self.config['training']['cv_folds']
@@ -252,8 +260,9 @@ class ResNet50v2Pipeline:
         return epoch_metrics
         
 
-    def train_fold(self, fold_idx, train_idx, val_idx):
-        train_loader, val_loader = self._get_data_loaders(train_idx, val_idx)
+    def train_fold(self, fold_idx, train_loader):
+        
+        self.model.train()
         
         train_loss_crop = 0
         train_loss_state = 0
@@ -290,23 +299,19 @@ class ResNet50v2Pipeline:
             train_total += batch_metrics['total']
             
             batch_pbar.set_postfix({
-                'Loss Crop': f"{batch_metrics['loss_crop']:.4f}",
-                'Loss State': f"{batch_metrics['loss_state']:.4f}",
-                'Acc Crop': f"{batch_metrics['correct_crop'] / batch_metrics['total']:.4f}",
-                'Acc State': f"{batch_metrics['correct_state'] / batch_metrics['total']:.4f}"
+                'TLC': f"{batch_metrics['loss_crop'] * 100:.2f}%",
+                'TLS': f"{batch_metrics['loss_state'] * 100:.2f}%",
+                'TAC': f"{(batch_metrics['correct_crop'] / batch_metrics['total']) * 100:.2f}%",
+                'TAS': f"{(batch_metrics['correct_state'] / batch_metrics['total']) * 100:.2f}%",
+                'Total': f"{batch_metrics['total']}"
             })
-        
-        val_loss_crop, val_loss_state, val_acc_crop, val_acc_state = self.validate(val_loader)
         
         return {
             'train_loss_crop': train_loss_crop / len(train_loader),
             'train_loss_state': train_loss_state / len(train_loader),
             'train_acc_crop': train_correct_crop / train_total,
             'train_acc_state': train_correct_state / train_total,
-            'val_loss_crop': val_loss_crop,
-            'val_loss_state': val_loss_state,
-            'val_acc_crop': val_acc_crop,
-            'val_acc_state': val_acc_state
+            'train_total': train_total
         }
         
 
@@ -349,39 +354,94 @@ class ResNet50v2Pipeline:
         total = crop_labels.size(0)
         
         return {
-            'loss_crop': loss_crop.item(),
-            'loss_state': loss_state.item(),
-            'correct_crop': correct_crop,
-            'correct_state': correct_state,
-            'total': total
+            'train_loss_crop': loss_crop.item(),
+            'train_loss_state': loss_state.item(),
+            'train_correct_crop': correct_crop,
+            'train_correct_state': correct_state,
+            'train_total': total
         }
         
-    def validate(self, val_loader):
+    def validate_fold(self, fold_idx, val_loader):
         self.model.eval()
-        total_loss = 0
-        correct_crop = 0
-        correct_state = 0
-        total = 0
+        val_loss_crop = 0
+        val_loss_state = 0
+        val_correct_crop = 0
+        val_correct_state = 0
+        val_total = 0
+        
+        batch_pbar = tqdm(enumerate(val_loader), total=len(val_loader), 
+                          desc="Batches", leave=False)
+        
+        for batch_idx, batch in batch_pbar:
+            crop_labels = batch['crop_label']
+            crop_label_idx = batch['crop_idx']
+            idxs = batch['idx']
+            img_paths = batch['img_path']
+            splits = batch['split']
+            state_labels = batch['state_label']
+            state_label_idx = batch['state_idx']
+            
+            # Load batch of images
+            images = []
+            for path, split in zip(img_paths, splits):
+                images.append(self.dataset.load_image_from_path(path, split))
+            
+            images_tensor = torch.stack(images, dim=0)
+            
+            batch_metrics = self.validate_batch(batch_idx, images_tensor, crop_label_idx, state_label_idx)
+            
+            val_loss_crop += batch_metrics['loss_crop']
+            val_loss_state += batch_metrics['loss_state']
+            val_correct_crop += batch_metrics['correct_crop']
+            val_correct_state += batch_metrics['correct_state']
+            val_total += batch_metrics['total']
+            
+            batch_pbar.set_postfix({
+                'VLC': f"{batch_metrics['loss_crop'] * 100:.2f}%",
+                'VLS': f"{batch_metrics['loss_state'] * 100:.2f}%",
+                'VAC': f"{(batch_metrics['correct_crop'] / batch_metrics['total']) * 100:.2f}%",
+                'VAS': f"{(batch_metrics['correct_state'] / batch_metrics['total']) * 100:.2f}%",
+                'Total': f"{batch_metrics['total']}"
+            })
+            
+    def validate_batch(self, batch_idx, inputs, crop_labels, state_labels):
+        # Convert inputs to PyTorch tensor if it's not already
+        
+        inputs = inputs.clone().detach().requires_grad_(False)
+        crop_labels = crop_labels.clone().detach()
+        state_labels = state_labels.clone().detach()
+        
+        # Move data to device
+        inputs = inputs.to(self.device)
+        crop_labels = crop_labels.to(self.device)
+        state_labels = state_labels.to(self.device)
 
-        for inputs, crop_labels, state_labels in tqdm(val_loader, desc="Validating", leave=False):
-            inputs = inputs.to(self.device)
-            crop_labels = crop_labels.to(self.device)
-            state_labels = state_labels.to(self.device)
+        # Forward pass
+        model_outputs = self.model(inputs)
+        
+        crop_outputs = model_outputs[:, :len(self.dataset.unique_crops)]
+        state_outputs = model_outputs[:, len(self.dataset.unique_states):]
 
-            crop_outputs, state_outputs = self.model(inputs)
-            loss_crop = self.criterion_crop(crop_outputs, crop_labels)
-            loss_state = self.criterion_state(state_outputs, state_labels)
-            loss = loss_crop + loss_state
-
-            total_loss += loss.item()
-            _, predicted_crop = torch.max(crop_outputs, 1)
-            _, predicted_state = torch.max(state_outputs, 1)
-            total += crop_labels.size(0)
-            correct_crop += (predicted_crop == crop_labels).sum().item()
-            correct_state += (predicted_state == state_labels).sum().item()
-
-        return total_loss / len(val_loader), correct_crop / total, correct_state / total
-
+        
+        # Calculate loss
+        loss_crop = self.criterion_crop(crop_outputs, crop_labels)
+        loss_state = self.criterion_state(state_outputs, state_labels)
+        
+        # Compute statistics
+        _, predicted_crop = torch.max(crop_outputs, 1)
+        _, predicted_state = torch.max(state_outputs, 1)
+        correct_crop = (predicted_crop == crop_labels).sum().item()
+        correct_state = (predicted_state == state_labels).sum().item()
+        total = crop_labels.size(0)
+        
+        return {
+            'val_loss_crop': loss_crop.item(),
+            'val_loss_state': loss_state.item(),
+            'val_correct_crop': correct_crop,
+            'val_correct_state': correct_state,
+            'val_total': total
+        }
+    
     
     def test(self):
         test_loader = DataLoader(self.dataset.test_samples, batch_size=self.config['evaluation']['batch_size'])
