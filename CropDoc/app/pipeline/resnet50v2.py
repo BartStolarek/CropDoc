@@ -92,8 +92,9 @@ class ResNet50v2Pipeline:
             model.fc = nn.Identity()
             model.fc_crop = nn.Linear(num_ftrs, len(self.dataset.unique_crops))
             model.fc_state = nn.Linear(num_ftrs, len(self.dataset.unique_states))
-            logger.info("ResNet50v2 Model Created")
+            model = nn.DataParallel(model)
             model = model.to(self.device)
+            logger.info("ResNet50v2 Model Created")
             return model
         except Exception as e:
             logger.error(f"Error creating model: {e}")
