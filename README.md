@@ -26,6 +26,11 @@ Venv or Conda environment setup is recommended for running the CropDoc applicati
 
 4. Install Requirements
 
+Due to some issues with pytorch compatibility, you need to install it first, before installing the requirements file:
+```pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124```
+
+Then, install the requirements file:
+
 - for venv: ```pip install -r requirements.txt```
 - for conda: ```conda install --file requirements.txt```
 
