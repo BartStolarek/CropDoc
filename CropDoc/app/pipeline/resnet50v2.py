@@ -293,6 +293,10 @@ class ResNet50v2Pipeline:
         loss_crop = epoch_metrics['train_loss_crop'] / num_folds
         loss_state = epoch_metrics['train_loss_state'] / num_folds
         
+        # Compute the total loss using criterion
+        loss_crop = self.criterion_crop(loss_crop)
+        loss_state = self.criterion_state(loss_state)
+        
         # Backward pass and optimise
         loss_crop.backward()
         loss_state.backward()
