@@ -15,7 +15,7 @@ model:
     - activation_functions: ReLU
     - input_output_dimensions: 224x224x3
   training:
-    epochs: 1
+    epochs: 2
     cv_folds: 2
     batch_size: 64
     learning_rate: 0.001
