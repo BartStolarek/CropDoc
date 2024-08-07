@@ -15,8 +15,8 @@ model:
     - activation_functions: ReLU
     - input_output_dimensions: 224x224x3
   training:
-    epochs: 2
-    cv_folds: 5
+    epochs: 1
+    cv_folds: 2
     batch_size: 32
     learning_rate: 0.001
     optimiser: # List of optimiser algorithms can be found here: https://pytorch.org/docs/stable/optim.html

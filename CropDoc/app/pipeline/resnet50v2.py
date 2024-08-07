@@ -2,15 +2,12 @@ import torch
 import torch.nn as nn
 from torchvision import models
 from tqdm import tqdm
-import os
 from app.service.data import DatasetManager, TransformerManager
-from torch.utils.data import DataLoader  # PyTorch data utilities
 from pprint import pprint
 from loguru import logger
 from sklearn.model_selection import KFold
-import traceback
 from tqdm import trange
-
+import shutil
 
 
 def run(dataset_path: str, config: dict):
@@ -81,7 +78,11 @@ class ResNet50v2Pipeline:
         self.model = self._create_model()
         
         self.criterion_crop, self.criterion_state = self._get_loss_functions()
-        self.optimizer = self._get_optimizer()
+        self.batch_optimizer = self._get_optimizer()
+        self.epoch_optimizer = self._get_optimizer()
+        # self.optimizer = self._get_optimizer()
+        self.terminal_width = self._get_terminal_width()
+        print(f"TERMINAL SIZE: {self.terminal_width}")
         logger.info("ResNet50v2 Pipeline Initialised")
 
     def _create_model(self):
@@ -110,7 +111,7 @@ class ResNet50v2Pipeline:
         except Exception as e:
             logger.error(f"Error parsing loss function: {e}")
             raise e
-        try:    
+        try:
             loss_params = self.config['training']['loss_function']['params']
         except KeyError as e:
             logger.info(f'No loss function parameters provided: {e}')
@@ -146,7 +147,6 @@ class ResNet50v2Pipeline:
         
         logger.info(f"Loss function obtained: {loss_type}")
         return nn_loss_functions[loss_type](**(loss_params or {})), nn_loss_functions[loss_type](**(loss_params or {}))
-
 
     def _get_optimizer(self):
         optimizer_config = self.config['training']['optimiser']
@@ -200,11 +200,14 @@ class ResNet50v2Pipeline:
         
         return train_loader, val_loader
 
+    def _get_terminal_width(self):
+        return shutil.get_terminal_size().columns
+    
     def train(self):
         logger.debug("Training ResNet50v2 Model")
         kf = KFold(n_splits=self.config['training']['cv_folds'], shuffle=True, random_state=42)
         
-        epoch_pbar = trange(self.config['training']['epochs'], desc="Epochs")
+        epoch_pbar = trange(self.config['training']['epochs'], desc="Epochs", ncols=max(120, self.terminal_width))
         for epoch in epoch_pbar:
             epoch_metrics = self.train_epoch(kf)
             
@@ -224,6 +227,8 @@ class ResNet50v2Pipeline:
 
     def train_epoch(self, kf):
         
+        self.epoch_optimizer.zero_grad()
+        
         epoch_metrics = {
             'train_loss_crop': 0, 'train_loss_state': 0,
             'train_acc_crop': 0, 'train_acc_state': 0,
@@ -231,9 +236,9 @@ class ResNet50v2Pipeline:
             'val_acc_crop': 0, 'val_acc_state': 0
         }
         
-        fold_pbar = tqdm(enumerate(kf.split(self.dataset.train_samples)), 
-                         total=self.config['training']['cv_folds'], 
-                         desc="Folds", leave=False)
+        fold_pbar = tqdm(enumerate(kf.split(self.dataset.train_samples)),
+                         total=self.config['training']['cv_folds'],
+                         desc="Folds", leave=False, ncols=max(120, self.terminal_width))
         
         for fold_idx, (train_idx, val_idx) in fold_pbar:
             
@@ -272,11 +277,11 @@ class ResNet50v2Pipeline:
                 })
             except Exception as e:
                 logger.error(
-                        f"Error updating epoch metrics:\n"
-                        f"Epoch Metrics: {epoch_metrics}\n"
-                        f"Fold Train Metrics: {fold_train_metrics}\n"
-                        f"Fold Val Metrics: {fold_val_metrics}\n"
-                        f"Error: {e}"
+                    "Error updating epoch metrics:\n"
+                    f"Epoch Metrics: {epoch_metrics}\n"
+                    f"Fold Train Metrics: {fold_train_metrics}\n"
+                    f"Fold Val Metrics: {fold_val_metrics}\n"
+                    f"Error: {e}"
                 )
                 raise e
         
@@ -284,9 +289,17 @@ class ResNet50v2Pipeline:
         for key in epoch_metrics:
             epoch_metrics[key] /= num_folds
         
+        # Calculate loss for crop and state
+        loss_crop = epoch_metrics['train_loss_crop'] / num_folds
+        loss_state = epoch_metrics['train_loss_state'] / num_folds
+        
+        # Backward pass and optimise
+        loss_crop.backward()
+        loss_state.backward()
+        self.epoch_optimizer.step()
+        
         return epoch_metrics
         
-
     def train_fold(self, fold_idx, train_loader):
         
         self.model.train()
@@ -297,16 +310,13 @@ class ResNet50v2Pipeline:
         train_correct_state = 0
         train_total = 0
         
-        batch_pbar = tqdm(enumerate(train_loader), total=len(train_loader), 
-                          desc="Train Batches", leave=False)
+        batch_pbar = tqdm(enumerate(train_loader), total=len(train_loader),
+                          desc="Train Batches", leave=False, ncols=max(120, self.terminal_width))
         
         for batch_idx, batch in batch_pbar:
-            crop_labels = batch['crop_label']
             crop_label_idx = batch['crop_idx']
-            idxs = batch['idx']
             img_paths = batch['img_path']
             splits = batch['split']
-            state_labels = batch['state_label']
             state_label_idx = batch['state_idx']
             
             # Load batch of images
@@ -315,7 +325,6 @@ class ResNet50v2Pipeline:
                 images.append(self.dataset.load_image_from_path(path, split))
             
             images_tensor = torch.stack(images, dim=0)
-            
             
             batch_metrics = self.train_batch(batch_idx, images_tensor, crop_label_idx, state_label_idx)
             
@@ -340,7 +349,6 @@ class ResNet50v2Pipeline:
             'train_total': train_total
         }
         
-
     def train_batch(self, batch_idx, inputs, crop_labels, state_labels):
         # Convert inputs to PyTorch tensor if it's not already
         
@@ -354,7 +362,8 @@ class ResNet50v2Pipeline:
         state_labels = state_labels.to(self.device)
 
         # Zero the gradients
-        self.optimizer.zero_grad()
+        # self.optimizer.zero_grad()
+        self.batch_optimizer.zero_grad()
         
         # Forward pass
         model_outputs = self.model(inputs)
@@ -362,15 +371,17 @@ class ResNet50v2Pipeline:
         crop_outputs = model_outputs[:, :len(self.dataset.unique_crops)]
         state_outputs = model_outputs[:, len(self.dataset.unique_states):]
 
-        
         # Calculate loss
         loss_crop = self.criterion_crop(crop_outputs, crop_labels)
         loss_state = self.criterion_state(state_outputs, state_labels)
-        loss = loss_crop + loss_state
+        # loss = loss_crop + loss_state
         
         # Backward pass and optimise
-        loss.backward()
-        self.optimizer.step()
+        # loss.backward()
+        loss_crop.backward(retain_graph=True)
+        loss_state.backward(retain_graph=True)
+        self.batch_optimizer.step()
+        # self.optimizer.step()
         
         # Compute statistics
         _, predicted_crop = torch.max(crop_outputs, 1)
@@ -395,16 +406,13 @@ class ResNet50v2Pipeline:
         val_correct_state = 0
         val_total = 0
         
-        batch_pbar = tqdm(enumerate(val_loader), total=len(val_loader), 
-                          desc="Validate Batches", leave=False)
+        batch_pbar = tqdm(enumerate(val_loader), total=len(val_loader),
+                          desc="Validate Batches", leave=False, ncols=max(120, self.terminal_width))
         
         for batch_idx, batch in batch_pbar:
-            crop_labels = batch['crop_label']
             crop_label_idx = batch['crop_idx']
-            idxs = batch['idx']
             img_paths = batch['img_path']
             splits = batch['split']
-            state_labels = batch['state_label']
             state_label_idx = batch['state_idx']
             
             # Load batch of images
@@ -454,7 +462,6 @@ class ResNet50v2Pipeline:
         crop_outputs = model_outputs[:, :len(self.dataset.unique_crops)]
         state_outputs = model_outputs[:, len(self.dataset.unique_states):]
 
-        
         # Calculate loss
         loss_crop = self.criterion_crop(crop_outputs, crop_labels)
         loss_state = self.criterion_state(state_outputs, state_labels)
@@ -474,14 +481,15 @@ class ResNet50v2Pipeline:
             'val_total': total
         }
     
-    
     def test(self):
-        test_loader = DataLoader(self.dataset.test_samples, batch_size=self.config['evaluation']['batch_size'])
-        test_loss, test_acc_crop, test_acc_state = self.validate(test_loader)
-        print(f"Test Loss: {test_loss:.4f}, Crop Acc: {test_acc_crop:.4f}, State Acc: {test_acc_state:.4f}")
-
-    def save_model(self):
-        os.makedirs(self.config['output_dir'], exist_ok=True)
-        torch.save(self.model.state_dict(), os.path.join(self.config['output_dir'], f"{self.config['model']['name']}.pth"))
-        print(f"Model saved to {self.config['output_dir']}")
+        pass
+    
+    def save_trained_model(self):
+        pass
+    
+    def save_tested_model(self):
+        pass
         
+        # TODO: Fix after epochs run
+        # TODO: Make sure to capture each batch, fold and epoch metric in a list
+        # TODO: Update progress bar think about howto do it
