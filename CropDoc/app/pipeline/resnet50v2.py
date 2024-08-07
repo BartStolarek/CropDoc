@@ -10,10 +10,7 @@ from loguru import logger
 from sklearn.model_selection import KFold
 import traceback
 from tqdm import trange
-import torch.distributed as dist
-import torch.multiprocessing as mp
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data.distributed import DistributedSampler
+
 
 
 def run(dataset_path: str, config: dict):
@@ -82,6 +79,7 @@ class ResNet50v2Pipeline:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self.model = self._create_model()
+        
         self.criterion_crop, self.criterion_state = self._get_loss_functions()
         self.optimizer = self._get_optimizer()
         logger.info("ResNet50v2 Pipeline Initialised")
@@ -96,7 +94,6 @@ class ResNet50v2Pipeline:
             model.fc_state = nn.Linear(num_ftrs, len(self.dataset.unique_states))
             logger.info("ResNet50v2 Model Created")
             model = model.to(self.device)
-            model = DDP(model, device_ids=[self.device])
             return model
         except Exception as e:
             logger.error(f"Error creating model: {e}")
@@ -181,33 +178,23 @@ class ResNet50v2Pipeline:
     def _get_data_loaders(self, train_indices, val_indices):
         
         # Create data samplers which are used to get the data for the training and validation sets
-        train_sampler = DistributedSampler(
-            self.dataset.train_samples,
-            num_replicas=dist.get_world_size(),
-            rank=dist.get_rank(),
-            shuffle=True
-        )
-        val_sampler = DistributedSampler(
-            self.dataset.train_samples,
-            num_replicas=dist.get_world_size(),
-            rank=dist.get_rank(),
-            shuffle=False
-        )
+        train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
+        val_sampler = torch.utils.data.SubsetRandomSampler(val_indices)
         
         # Create data loaders which are used to load the data in batches
-        train_loader = DataLoader(
+        train_loader = torch.utils.data.DataLoader(
             self.dataset.train_samples,
             batch_size=self.config['training']['batch_size'],
             sampler=train_sampler,
             num_workers=self.config['training'].get('num_workers', 0),
-            pin_memory=True
+            pin_memory=True if torch.cuda.is_available() else False
         )
-        val_loader = DataLoader(
+        val_loader = torch.utils.data.DataLoader(
             self.dataset.train_samples,
             batch_size=self.config['training']['batch_size'],
             sampler=val_sampler,
             num_workers=self.config['training'].get('num_workers', 0),
-            pin_memory=True
+            pin_memory=True if torch.cuda.is_available() else False
         )
         
         return train_loader, val_loader
