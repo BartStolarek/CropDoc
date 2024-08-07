@@ -117,7 +117,7 @@ class ResNet50v2Pipeline:
         self.epoch_optimizer = self._get_optimizer()
         
         # Attribute for progress bar
-        self.terminal_width = self._get_terminal_width() * 0.9
+        self.terminal_width = self._get_terminal_width()
         
         # Plot Metrics
         self.batch_train_crop_loss = []
@@ -270,7 +270,7 @@ class ResNet50v2Pipeline:
         return train_loader, val_loader
 
     def _get_terminal_width(self):
-        return shutil.get_terminal_size().columns
+        return int(shutil.get_terminal_size().columns * 0.9)
     
     def train(self):
         logger.debug("Training ResNet50v2 Model")
@@ -281,7 +281,7 @@ class ResNet50v2Pipeline:
             full_range = range(len(self.dataset.train_samples))
             kf = [(full_range, full_range)]
         
-        epoch_pbar = trange(self.config['training']['epochs'], desc="Epochs", ncols=max(120, self.terminal_width))
+        epoch_pbar = trange(int(self.config['training']['epochs']), desc="Epochs", ncols=max(120, self.terminal_width))
         for epoch in epoch_pbar:
             epoch_metrics = self.train_epoch(kf)
             
