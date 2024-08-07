@@ -274,7 +274,12 @@ class ResNet50v2Pipeline:
     
     def train(self):
         logger.debug("Training ResNet50v2 Model")
-        kf = KFold(n_splits=self.config['training']['cv_folds'], shuffle=True, random_state=42)
+        k_folds = self.config['training']['cv_folds']
+        if k_folds > 1:
+            kf = KFold(n_splits=self.config['training']['cv_folds'], shuffle=True, random_state=42)
+        else:
+            full_range = range(len(self.dataset.train_samples))
+            kf = [(full_range, full_range)]
         
         epoch_pbar = trange(self.config['training']['epochs'], desc="Epochs", ncols=max(120, self.terminal_width))
         for epoch in epoch_pbar:
