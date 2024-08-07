@@ -15,9 +15,9 @@ model:
     - activation_functions: ReLU
     - input_output_dimensions: 224x224x3
   training:
-    epochs: 10
-    cv_folds: 10
-    batch_size: 32
+    epochs: 1
+    cv_folds: 1
+    batch_size: 64
     learning_rate: 0.001
     optimiser: # List of optimiser algorithms can be found here: https://pytorch.org/docs/stable/optim.html
       type: Adam
@@ -28,6 +28,7 @@ model:
       type: CrossEntropyLoss
       params:
   data:
+    workers: 4
     transformers: # List of data transformers can be found here: https://pytorch.org/vision/0.9/transforms.html
       train:
         - type: RandomResizedCrop
