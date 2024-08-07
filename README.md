@@ -38,6 +38,18 @@ FLASK_ENV=development
 LOGGING_LEVEL=DEBUG
 ```
 
+You can use the following command do that from the root folder:
+```
+
+touch CropDoc/app/config.env
+echo "APP_NAME='CropDoc'" > CropDoc/app/config.env
+echo "SECRET_KEY='secretkey'" >> CropDoc/app/config.env
+echo "FLASK_APP=manage.py" >> CropDoc/app/config.env
+echo "FLASK_ENV=development" >> CropDoc/app/config.env
+echo "LOGGING_LEVEL=DEBUG" >> CropDoc/app/config.env
+
+```
+
 ### Additional: VSC Python Interpreter Setup
 
 To setup python interpreter in visual studio code (so that installed packages dont cause any unresolved issues or warnings)
