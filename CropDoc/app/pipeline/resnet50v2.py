@@ -10,6 +10,10 @@ from loguru import logger
 from sklearn.model_selection import KFold
 import traceback
 from tqdm import trange
+import torch.distributed as dist
+import torch.multiprocessing as mp
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data.distributed import DistributedSampler
 
 
 def run(dataset_path: str, config: dict):
@@ -91,7 +95,9 @@ class ResNet50v2Pipeline:
             model.fc_crop = nn.Linear(num_ftrs, len(self.dataset.unique_crops))
             model.fc_state = nn.Linear(num_ftrs, len(self.dataset.unique_states))
             logger.info("ResNet50v2 Model Created")
-            return model.to(self.device)
+            model = model.to(self.device)
+            model = DDP(model, device_ids=[self.device])
+            return model
         except Exception as e:
             logger.error(f"Error creating model: {e}")
             raise e
@@ -175,25 +181,35 @@ class ResNet50v2Pipeline:
     def _get_data_loaders(self, train_indices, val_indices):
         
         # Create data samplers which are used to get the data for the training and validation sets
-        train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
-        val_sampler = torch.utils.data.SubsetRandomSampler(val_indices)
+        train_sampler = DistributedSampler(
+            self.dataset.train_samples,
+            num_replicas=dist.get_world_size(),
+            rank=dist.get_rank(),
+            shuffle=True
+        )
+        val_sampler = DistributedSampler(
+            self.dataset.train_samples,
+            num_replicas=dist.get_world_size(),
+            rank=dist.get_rank(),
+            shuffle=False
+        )
         
         # Create data loaders which are used to load the data in batches
-        train_loader = torch.utils.data.DataLoader(
+        train_loader = DataLoader(
             self.dataset.train_samples,
             batch_size=self.config['training']['batch_size'],
             sampler=train_sampler,
             num_workers=self.config['training'].get('num_workers', 0),
-            pin_memory=True if torch.cuda.is_available() else False
+            pin_memory=True
         )
-        val_loader = torch.utils.data.DataLoader(
+        val_loader = DataLoader(
             self.dataset.train_samples,
             batch_size=self.config['training']['batch_size'],
             sampler=val_sampler,
             num_workers=self.config['training'].get('num_workers', 0),
-            pin_memory=True if torch.cuda.is_available() else False
+            pin_memory=True
         )
-    
+        
         return train_loader, val_loader
 
     def train(self):
@@ -239,19 +255,42 @@ class ResNet50v2Pipeline:
             fold_val_metrics = self.validate_fold(fold_idx, val_loader)
             
             for key in epoch_metrics:
-                if 'train' in key:
-                    epoch_metrics[key] += fold_train_metrics[key]
-                elif 'val' :
-                    epoch_metrics[key] += fold_val_metrics[key]
-                else:
-                    raise ValueError(f"Unknown key: {key}")
-            
-            fold_pbar.set_postfix({
-                'Train Loss Crop': f"{fold_train_metrics['train_loss_crop'] * 100:.2f}%",
-                'Train Acc Crop': f"{fold_train_metrics['train_acc_crop'] * 100:.2f}%",
-                'Val Loss Crop': f"{fold_train_metrics['val_loss_crop'] * 100:.2f}%",
-                'Val Acc Crop': f"{fold_train_metrics['val_acc_crop'] * 100:.2f}%"
-            })
+                try:
+                    if 'train' in key:
+                        epoch_metrics[key] += fold_train_metrics[key]
+                    elif 'val':
+                        epoch_metrics[key] += fold_val_metrics[key]
+                    else:
+                        raise ValueError(f"Unknown key: {key}")
+                except Exception as e:
+                    logger.error(
+                        f"Error updating epoch metrics:\n"
+                        f"Key: {key}\n"
+                        f"Epoch Metrics: {epoch_metrics}\n"
+                        f"Fold Train Metrics: {fold_train_metrics}\n"
+                        f"Fold Val Metrics: {fold_val_metrics}\n"
+                        f"Error: {e}"
+                    )
+                    raise e
+            try:
+                total_train_val = fold_train_metrics['train_total'] + fold_val_metrics['val_total']
+                train_val_ratio = f"{(fold_train_metrics['train_total'] / total_train_val) * 100:.0f} / {(fold_val_metrics['val_total'] / total_train_val) * 100:.0f}"
+                fold_pbar.set_postfix({
+                    'Crop Loss Train(Val)': f"{fold_train_metrics['train_loss_crop']:.4f}({fold_val_metrics['val_loss_crop']:.4f})",
+                    'State Loss Train(Val)': f"{fold_train_metrics['train_loss_state']:.4f}({fold_val_metrics['val_loss_state']:.4f})",
+                    'Crop Acc Train(Val)': f"{fold_train_metrics['train_acc_crop'] * 100:.2f}%({fold_val_metrics['val_acc_crop'] * 100:.2f}%)",
+                    'State Acc Train(Val)': f"{fold_train_metrics['train_acc_state'] * 100:.2f}%({fold_val_metrics['val_acc_state'] * 100:.2f}%)",
+                    'Total Train(Val)': f"{fold_train_metrics['train_total']}({fold_val_metrics['val_total']}) = {train_val_ratio}"
+                })
+            except Exception as e:
+                logger.error(
+                        f"Error updating epoch metrics:\n"
+                        f"Epoch Metrics: {epoch_metrics}\n"
+                        f"Fold Train Metrics: {fold_train_metrics}\n"
+                        f"Fold Val Metrics: {fold_val_metrics}\n"
+                        f"Error: {e}"
+                )
+                raise e
         
         num_folds = self.config['training']['cv_folds']
         for key in epoch_metrics:
@@ -271,7 +310,7 @@ class ResNet50v2Pipeline:
         train_total = 0
         
         batch_pbar = tqdm(enumerate(train_loader), total=len(train_loader), 
-                          desc="Batches", leave=False)
+                          desc="Train Batches", leave=False)
         
         for batch_idx, batch in batch_pbar:
             crop_labels = batch['crop_label']
@@ -292,18 +331,17 @@ class ResNet50v2Pipeline:
             
             batch_metrics = self.train_batch(batch_idx, images_tensor, crop_label_idx, state_label_idx)
             
-            train_loss_crop += batch_metrics['loss_crop']
-            train_loss_state += batch_metrics['loss_state']
-            train_correct_crop += batch_metrics['correct_crop']
-            train_correct_state += batch_metrics['correct_state']
-            train_total += batch_metrics['total']
+            train_loss_crop += batch_metrics['train_loss_crop']
+            train_loss_state += batch_metrics['train_loss_state']
+            train_correct_crop += batch_metrics['train_correct_crop']
+            train_correct_state += batch_metrics['train_correct_state']
+            train_total += batch_metrics['train_total']
             
             batch_pbar.set_postfix({
-                'TLC': f"{batch_metrics['loss_crop'] * 100:.2f}%",
-                'TLS': f"{batch_metrics['loss_state'] * 100:.2f}%",
-                'TAC': f"{(batch_metrics['correct_crop'] / batch_metrics['total']) * 100:.2f}%",
-                'TAS': f"{(batch_metrics['correct_state'] / batch_metrics['total']) * 100:.2f}%",
-                'Total': f"{batch_metrics['total']}"
+                'Loss Crop': f"{batch_metrics['train_loss_crop']:.4f}",
+                'Loss State': f"{batch_metrics['train_loss_state']:.4f}",
+                'Acc Crop': f"{(batch_metrics['train_correct_crop'] / batch_metrics['train_total']) * 100:.2f}%",
+                'Acc State': f"{(batch_metrics['train_correct_state'] / batch_metrics['train_total']) * 100:.2f}%"
             })
         
         return {
@@ -370,7 +408,7 @@ class ResNet50v2Pipeline:
         val_total = 0
         
         batch_pbar = tqdm(enumerate(val_loader), total=len(val_loader), 
-                          desc="Batches", leave=False)
+                          desc="Validate Batches", leave=False)
         
         for batch_idx, batch in batch_pbar:
             crop_labels = batch['crop_label']
@@ -390,19 +428,25 @@ class ResNet50v2Pipeline:
             
             batch_metrics = self.validate_batch(batch_idx, images_tensor, crop_label_idx, state_label_idx)
             
-            val_loss_crop += batch_metrics['loss_crop']
-            val_loss_state += batch_metrics['loss_state']
-            val_correct_crop += batch_metrics['correct_crop']
-            val_correct_state += batch_metrics['correct_state']
-            val_total += batch_metrics['total']
+            val_loss_crop += batch_metrics['val_loss_crop']
+            val_loss_state += batch_metrics['val_loss_state']
+            val_correct_crop += batch_metrics['val_correct_crop']
+            val_correct_state += batch_metrics['val_correct_state']
+            val_total += batch_metrics['val_total']
             
             batch_pbar.set_postfix({
-                'VLC': f"{batch_metrics['loss_crop'] * 100:.2f}%",
-                'VLS': f"{batch_metrics['loss_state'] * 100:.2f}%",
-                'VAC': f"{(batch_metrics['correct_crop'] / batch_metrics['total']) * 100:.2f}%",
-                'VAS': f"{(batch_metrics['correct_state'] / batch_metrics['total']) * 100:.2f}%",
-                'Total': f"{batch_metrics['total']}"
+                'Loss Crop': f"{batch_metrics['val_loss_crop']:.4f}",
+                'Loss State': f"{batch_metrics['val_loss_state']:.4f}",
+                'Acc Crop': f"{(batch_metrics['val_correct_crop'] / batch_metrics['val_total']) * 100:.2f}%",
+                'Acc State': f"{(batch_metrics['val_correct_state'] / batch_metrics['val_total']) * 100:.2f}%"
             })
+        return {
+            'val_loss_crop': val_loss_crop / len(val_loader),
+            'val_loss_state': val_loss_state / len(val_loader),
+            'val_acc_crop': val_correct_crop / val_total,
+            'val_acc_state': val_correct_state / val_total,
+            'val_total': val_total
+        }
             
     def validate_batch(self, batch_idx, inputs, crop_labels, state_labels):
         # Convert inputs to PyTorch tensor if it's not already
