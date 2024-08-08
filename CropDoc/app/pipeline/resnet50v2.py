@@ -113,8 +113,7 @@ class ResNet50v2Pipeline:
         self.criterion_crop, self.criterion_state = self._get_loss_functions()
         
         # Optimisers
-        self.batch_optimizer = self._get_optimizer()
-        self.epoch_optimizer = self._get_optimizer()
+        self.optimizer = self._get_optimizer()
         
         # Attribute for progress bar
         self.terminal_width = self._get_terminal_width()
@@ -318,8 +317,6 @@ class ResNet50v2Pipeline:
 
     def train_epoch(self, kf):
         
-        self.epoch_optimizer.zero_grad()
-        
         epoch_metrics = {
             'train_loss_crop': 0, 'train_loss_state': 0,
             'train_acc_crop': 0, 'train_acc_state': 0,
@@ -386,18 +383,6 @@ class ResNet50v2Pipeline:
         for key in epoch_metrics:
             epoch_metrics[key] /= num_folds
         
-        # Calculate loss for crop and state
-        loss_crop = epoch_metrics['train_loss_crop'] / num_folds
-        loss_state = epoch_metrics['train_loss_state'] / num_folds
-        
-        # Compute the total loss using criterion
-        loss_crop = self.criterion_crop(loss_crop, self.dataset.unique_crops)
-        loss_state = self.criterion_state(loss_state, self.dataset.unique_states)
-        
-        # Backward pass and optimise
-        loss_crop.backward()
-        loss_state.backward()
-        self.epoch_optimizer.step()
         
         return epoch_metrics
         
@@ -467,8 +452,7 @@ class ResNet50v2Pipeline:
         state_labels = state_labels.to(self.device)
 
         # Zero the gradients
-        # self.optimizer.zero_grad()
-        self.batch_optimizer.zero_grad()
+        self.optimizer.zero_grad()
         
         # Forward pass
         model_outputs = self.model(inputs)
@@ -479,14 +463,14 @@ class ResNet50v2Pipeline:
         # Calculate loss
         loss_crop = self.criterion_crop(crop_outputs, crop_labels)
         loss_state = self.criterion_state(state_outputs, state_labels)
-        # loss = loss_crop + loss_state
         
-        # Backward pass and optimise
-        # loss.backward()
-        loss_crop.backward(retain_graph=True)
-        loss_state.backward(retain_graph=True)
-        self.batch_optimizer.step()
-        # self.optimizer.step()
+        # Backward pass
+        loss = loss_crop + loss_state  # Computationally more efficient while still allowing model to learn both tasks
+        loss.backward()
+        
+        # Optimise
+        self.optimizer.step()
+        
         
         # Compute statistics
         _, predicted_crop = torch.max(crop_outputs, 1)
