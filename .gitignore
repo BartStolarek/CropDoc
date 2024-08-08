@@ -176,8 +176,14 @@ node_modules/
 *.sqlite
 
 # Local Data Files
+**/data/*
+**/data/*/
+/data/
+/data/*/
 **/data/datasets/*
 **/data/datasets/*/
+*/CropDoc/data/
+/CropDoc/data/
 
 # Saved models
 **/tested_models/*/
