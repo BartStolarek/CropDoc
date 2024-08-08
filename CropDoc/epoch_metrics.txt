@@ -1,0 +1,11 @@
+Epoch Train Crop Loss
+[0.0]
+
+Epoch Train State Loss
+[5.3267446642830265]
+
+Epoch Val Crop Loss
+[0.0]
+
+Epoch Val State Loss
+[5.3793420649710155]

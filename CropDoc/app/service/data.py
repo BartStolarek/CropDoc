@@ -13,6 +13,7 @@ from app.utility.path import find_directory
 import matplotlib.pyplot as plt  # Plotting library
 from typing import Dict, List
 from PIL import Image
+from sklearn.model_selection import train_test_split
 import re
 from torchvision.transforms import (
     Compose,
@@ -92,15 +93,16 @@ class DatasetManager():
         train_samples (SampleList): List of samples for training.
         test_samples (SampleList): List of samples for testing/validation.
     """
-    def __init__(self, root_path: str, transform: dict[str, Compose]):
+    def __init__(self, root_path: str, transform: dict[str, Compose], reduce_dataset: float = 0):
         self.root_path = root_path
         self.transform = transform
         self.samples = self._get_samples(root_path) # list of samples {img_path, split, crop_label, state_label, idx, crop_idx, state_idx}
+        
+        self.train_samples = SampleList(self._train_samples(reduce_dataset))
+        self.test_samples = SampleList(self._test_samples(reduce_dataset))
+        self.samples = self.train_samples + self.test_samples
         self.unique_crops = self._get_unique_crops(self.samples)
         self.unique_states = self._get_unique_states(self.samples)
-        self.samples = self._add_idx_to_samples(self.samples)
-        self.train_samples = SampleList(self._train_samples())
-        self.test_samples = SampleList(self._test_samples())
         self.samples = self._add_idx_to_samples(self.samples)
         self.samples = self._add_crop_idx_to_samples(self.samples)
         self.samples = self._add_state_idx_to_samples(self.samples)
@@ -131,6 +133,7 @@ class DatasetManager():
                 
                 # Add sample to samples list
                 samples.append(image_dict)
+            
         logger.info(f"Obtained {len(samples)} samples")
         samples = SampleList(samples)
         return samples
@@ -211,11 +214,17 @@ class DatasetManager():
         
         return image, crop_label, state_label
     
-    def _train_samples(self) -> List[Dict]:
-        return [sample for sample in self.samples if sample['split'] == 'train']
+    def _train_samples(self, reduce_dataset: float = 0) -> List[Dict]:
+        train_samples = [sample for sample in self.samples if sample['split'] == 'train']
+        if reduce_dataset:
+            train_samples = train_samples[:int(len(train_samples) * reduce_dataset)]
+        return train_samples
     
-    def _test_samples(self) -> List[Dict]:
-        return [sample for sample in self.samples if sample['split'] == 'test']
+    def _test_samples(self, reduce_dataset: float = 0) -> List[Dict]:
+        test_samples = [sample for sample in self.samples if sample['split'] == 'test']
+        if reduce_dataset:
+            test_samples = test_samples[:int(len(test_samples) * reduce_dataset)]
+        return test_samples
 
     
     def load_image_from_path(self, img_path: List[str], split: str):
