@@ -179,6 +179,12 @@ node_modules/
 **/data/datasets/*
 **/data/datasets/*/
 
+# Saved models
+**/tested_models/*/
+**/tested_models/*
+**/trained_models/*/
+**/trained_models/*
+
 # Personal python scripts
 /python_scripts/
 
