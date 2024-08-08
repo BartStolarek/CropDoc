@@ -5,7 +5,7 @@ class vgg16(nn.Module):
     def __init__(self, num_classes: int | tuple, dropout: float = 0.5):
         super(vgg16, self).__init__()
 
-        self.classifier_num = type(num_classes)
+        self.classifier_num = num_classes
         self.features = nn.Sequential(self.convLayer(3,64),
                                       self.convLayer(64,64),
                                       nn.MaxPool2d((2,2),(2,2)),
@@ -26,7 +26,8 @@ class vgg16(nn.Module):
                                       nn.MaxPool2d((2,2),(2,2))
                                     )
         self.avgPool = nn.AdaptiveAvgPool2d((7,7))
-        if self.classifier_num == tuple:
+        #print(isinstance(self.classifier_num, tuple))
+        if isinstance(self.classifier_num, tuple):
             self.classifier1 = self.classifier(num_classes[0], dropout)
             self.classifier2 = self.classifier(num_classes[1], dropout)
         else:
@@ -35,7 +36,8 @@ class vgg16(nn.Module):
     def forward(self, x: torch.tensor) -> torch.tensor:
         x = self.features(x)
         x = self.avgPool(x)
-        if self.classifier_num == tuple:
+        x = torch.flatten(x,1)
+        if isinstance(self.classifier_num, tuple):
             class_1 = self.classifier1(x)
             class_2 = self.classifier2(x)
             return class_1, class_2
