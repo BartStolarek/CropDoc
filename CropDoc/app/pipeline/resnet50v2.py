@@ -21,6 +21,7 @@ import json
 
 warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.parallel.parallel_apply")
 
+ 
 
 def run( config: dict, dataset_path: str = None):
     """ Run the ResNet50v2 pipeline
@@ -96,6 +97,7 @@ def run( config: dict, dataset_path: str = None):
     
     # Test the model
     try:
+        results = pipeline.test()
         results = pipeline.test_and_evaluate()
     except Exception as e:
         logger.error(f"Error testing pipeline: {e}")
@@ -270,24 +272,23 @@ class ResNet50v2Pipeline:
         logger.info(f"Optimizer obtained: {optimizer_type}")
         return torch_optimisers[optimizer_type](self.model.parameters(), **(optimizer_params or {}))
 
+    def create_data_loader(self, dataset, shuffle=True):
+        """ Create a DataLoader from a Dataset
+        """
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_size=self.config['training']['batch_size'],
+            shuffle=shuffle,
+            num_workers=self.config['data']['workers'],
+            pin_memory=True if torch.cuda.is_available() else False
+        )
+    
     def _get_data_loaders(self, train_indices, val_indices):
         train_dataset = torch.utils.data.Subset(self.dataset.train_samples, train_indices)
         val_dataset = torch.utils.data.Subset(self.dataset.train_samples, val_indices)
         
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=self.config['training']['batch_size'],
-            shuffle=True,
-            num_workers=self.config['data']['workers'],
-            pin_memory=True if torch.cuda.is_available() else False
-        )
-        val_loader = torch.utils.data.DataLoader(
-            val_dataset,
-            batch_size=self.config['training']['batch_size'],
-            shuffle=False,
-            num_workers=self.config['data']['workers'],
-            pin_memory=True if torch.cuda.is_available() else False
-        )
+        train_loader = self.create_data_loader(train_dataset, shuffle=True)
+        val_loader = self.create_data_loader(val_dataset, shuffle=False)
         
         return train_loader, val_loader
 
@@ -612,46 +613,56 @@ class ResNet50v2Pipeline:
     
     def test(self):
         logger.debug("Testing ResNet50v2 Model")
+        
+        # Set model in to evaluation mode
         self.model.eval()
+        
+        # Initialise test metrics
         test_loss_crop = 0
         test_loss_state = 0
         test_correct_crop = 0
         test_correct_state = 0
         test_total = 0
 
-        test_loader = torch.utils.data.DataLoader(
-            self.dataset.test_samples,
-            batch_size=self.config['training']['batch_size'],
-            shuffle=False,
-            num_workers=self.config['data']['workers'],
-            pin_memory=True if torch.cuda.is_available() else False
-        )
-
+        # Create test data loader
+        test_loader = self.create_data_loader(self.dataset.test_samples, shuffle=False)
+        
+        # With torch.no_grad() disables gradient calculation, saves memory
         with torch.no_grad():
+            
+            # Iterate over test data loader
             for batch in test_loader:
+                
+                # Extract batch data
                 crop_label_idx = batch['crop_idx']
                 img_paths = batch['img_path']
                 splits = batch['split']
                 state_label_idx = batch['state_idx']
 
+                # Load images from paths
                 images = []
                 for path, split in zip(img_paths, splits):
                     images.append(self.dataset.load_image_from_path(path, split))
-                
                 images_tensor = torch.stack(images, dim=0).to(self.device)
+                
+                # Move labels to device
                 crop_labels = crop_label_idx.to(self.device)
                 state_labels = state_label_idx.to(self.device)
 
+                # Forward pass and obtain outputs
                 outputs = self.model(images_tensor)
                 crop_outputs = outputs[:, :len(self.dataset.unique_crops)]
                 state_outputs = outputs[:, len(self.dataset.unique_crops):]
 
+                # Calculate loss
                 loss_crop = self.criterion_crop(crop_outputs, crop_labels)
                 loss_state = self.criterion_state(state_outputs, state_labels)
 
+                # Update test metrics
                 test_loss_crop += loss_crop.item()
                 test_loss_state += loss_state.item()
 
+                # Compute statistics
                 _, predicted_crop = torch.max(crop_outputs, 1)
                 _, predicted_state = torch.max(state_outputs, 1)
                 test_correct_crop += (predicted_crop == crop_labels).sum().item()
@@ -693,56 +704,67 @@ class ResNet50v2Pipeline:
 
     def test_and_evaluate(self):
         logger.debug("Testing and Evaluating ResNet50v2 Model")
+        
+        # Set model in to evaluation mode
         self.model.eval()
         
+        # Initialise test metrics
         test_loss_crop = 0
         test_loss_state = 0
         test_correct_crop = 0
         test_correct_state = 0
         test_total = 0
         
+        # Initialise lists to store true and predicted labels
         all_true_labels = []
         all_predicted_labels = []
 
-        test_loader = torch.utils.data.DataLoader(
-            self.dataset.test_samples,
-            batch_size=self.config['training']['batch_size'],
-            shuffle=False,
-            num_workers=self.config['data']['workers'],
-            pin_memory=True if torch.cuda.is_available() else False
-        )
+        # Create test data loader
+        test_loader = self.create_data_loader(self.dataset.test_samples, shuffle=False)
 
+        # With torch.no_grad() disables gradient calculation, saves memory
         with torch.no_grad():
+            
+            # Iterate over test data loader
             for batch in test_loader:
+                
+                # Extract batch data
                 crop_label_idx = batch['crop_idx']
                 img_paths = batch['img_path']
                 splits = batch['split']
                 state_label_idx = batch['state_idx']
 
+                # Load images from paths
                 images = []
                 for path, split in zip(img_paths, splits):
                     images.append(self.dataset.load_image_from_path(path, split))
-
                 images_tensor = torch.stack(images, dim=0).to(self.device)
+                
+                # Move labels to device
                 crop_labels = crop_label_idx.to(self.device)
                 state_labels = state_label_idx.to(self.device)
 
+                # Forward pass and obtain outputs
                 outputs = self.model(images_tensor)
                 crop_outputs = outputs[:, :len(self.dataset.unique_crops)]
                 state_outputs = outputs[:, len(self.dataset.unique_crops):]
 
+                # Calculate loss
                 loss_crop = self.criterion_crop(crop_outputs, crop_labels)
                 loss_state = self.criterion_state(state_outputs, state_labels)
 
+                # Update test metrics
                 test_loss_crop += loss_crop.item()
                 test_loss_state += loss_state.item()
 
+                # Compute statistics
                 _, predicted_crop = torch.max(crop_outputs, 1)
                 _, predicted_state = torch.max(state_outputs, 1)
                 test_correct_crop += (predicted_crop == crop_labels).sum().item()
                 test_correct_state += (predicted_state == state_labels).sum().item()
                 test_total += crop_labels.size(0)
 
+                # Append true and predicted labels
                 all_true_labels.extend(crop_label_idx.tolist())
                 all_true_labels.extend(state_label_idx.tolist())
 
