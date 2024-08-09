@@ -176,20 +176,10 @@ node_modules/
 *.sqlite
 
 # Local Data Files
-**/data/*
-**/data/*/
-/data/
-/data/*/
-**/data/datasets/*
-**/data/datasets/*/
-*/CropDoc/data/
-/CropDoc/data/
+!CropDoc/data/
+!CropDoc/data/*/
+**/data/*/** 
 
-# Saved models
-**/tested_models/*/
-**/tested_models/*
-**/trained_models/*/
-**/trained_models/*
 
 # Personal python scripts
 /python_scripts/
