@@ -11,8 +11,11 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 import json
 
 
-def run_test_pipeline(config: dict, dataset_path: str, model_path: str):
+def run_test_pipeline(config: dict, dataset_path: str, model_path: str = None):
     logger.debug("Running ResNet50v2 Test Pipeline")
+    
+    if not model_path:
+        model_path = os.path.join(config['pipeline']['output_dir'], 'tested_model', 'resnet50v2_tested.pth')
     
     try:
         model_config = config['model']
@@ -67,14 +70,14 @@ class ResNet50v2TestPipeline:
     def _load_model(self) -> nn.DataParallel:
         logger.debug("Loading ResNet50v2 Model")
         try:
-            model = models.resnet50()
+            model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
             num_ftrs = model.fc.in_features
             model.fc = nn.Identity()
             model.fc_crop = nn.Linear(num_ftrs, len(self.dataset.unique_crops))
             model.fc_state = nn.Linear(num_ftrs, len(self.dataset.unique_states))
             
             model = nn.DataParallel(model)
-            model.load_state_dict(torch.load(self.model_path))
+            model.load_state_dict(torch.load(self.model_path, weights_only=True))
             model = model.to(self.device)
             
             logger.info(f"ResNet50v2 Model Loaded from {self.model_path}")
