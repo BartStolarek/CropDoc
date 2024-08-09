@@ -175,17 +175,14 @@ node_modules/
 # Databases
 *.sqlite
 
-# Local Data Files
+# Track the CropDoc/data directory itself
 !CropDoc/data/
-!CropDoc/data/*/
-**/data/*/** 
 
-**/data/datasets/
-**/data/datasets/**
-**/data/logs/
-**/data/logs/**
-**/data/output/
-**/data/output/**
+# Ignore everything in data and subdirectories
+CropDoc/data/**
+
+# But do not ignore the directories themselves
+!CropDoc/data/**/
 
 # Personal python scripts
 /python_scripts/
@@ -231,3 +228,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+CropDoc/data/output/trained_model/resnet50v2_trained.pth
+CropDoc/data/output/tested_model/resnet50v2_tested.pth
