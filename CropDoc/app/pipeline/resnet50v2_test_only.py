@@ -12,6 +12,41 @@ import json
 
 
 def run_test_pipeline(config: dict, dataset_path: str, model_path: str):
+    logger.debug("Running ResNet50v2 Test Pipeline")
+    
+    try:
+        model_config = config['model']
+        pipeline_config = config['pipeline']
+    except Exception as e:
+        logger.error(f"Error parsing config: {e}")
+        raise e
+    
+    try:
+        transformer_manager = TransformerManager(model_config['data']['transformers'])
+    except Exception as e:
+        logger.error(f"Error initialising transformers: {e}")
+        raise e
+    
+    try:
+        dataset_manager = DatasetManager(dataset_path, transform=transformer_manager.transformers, reduce_dataset=model_config['data']['usage'])
+    except Exception as e:
+        logger.error(f"Error initialising dataset manager: {e}")
+        raise e
+    
+    try:
+        pipeline = ResNet50v2TestPipeline(model_config, dataset_manager, output_dir=pipeline_config['output_dir'], model_path=model_path)
+    except Exception as e:
+        logger.error(f"Error initialising pipeline: {e}")
+        raise e
+        
+    try:
+        results = pipeline.test()
+        
+    except Exception as e:
+        logger.error(f"Error testing pipeline: {e}")
+        raise e
+    
+    logger.info("Test Pipeline completed successfully")
 
 class ResNet50v2TestPipeline:
     def __init__(self, config, dataset: DatasetManager, output_dir: str, model_path: str):
