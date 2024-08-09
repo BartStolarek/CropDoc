@@ -180,6 +180,12 @@ node_modules/
 !CropDoc/data/*/
 **/data/*/** 
 
+**/data/datasets/
+**/data/datasets/**
+**/data/logs/
+**/data/logs/**
+**/data/output/
+**/data/output/**
 
 # Personal python scripts
 /python_scripts/
