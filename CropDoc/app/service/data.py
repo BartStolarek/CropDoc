@@ -57,8 +57,11 @@ class SampleList(list):
         super().__init__(samples)
         self.data_map = self._create_data_map(samples)
     
+    def data_map(self):
+        return self._create_data_map()
+    
     def _create_data_map(self, samples: List[Dict]) -> Dict[str, Dict[str, int]]:
-        logger.debug(f"Creating data map")
+
         crop_map_dict = {}
         state_map_dict = {}
         for sample in samples:
@@ -72,7 +75,7 @@ class SampleList(list):
             else:
                 state_map_dict[sample['state_label']] += 1
         
-        logger.info(f"Created data map {crop_map_dict}, {state_map_dict}")
+        
         return {'crops': crop_map_dict, 'states': state_map_dict}
 
   
@@ -108,16 +111,36 @@ class DatasetManager():
         self.samples = self._add_state_idx_to_samples(self.samples)
     
     def __str__(self):
-        string = f"DatasetManager\n" + \
-                    f"Root Path: {self.root_path}\n" + \
-                    f"Transformers: {self.transform['length']}\n" + \
-                    f"Unique Crops: {self.unique_crops}\n" + \
-                    f"Unique States: {self.unique_states}\n" + \
-                    f"Samples: {len(self.samples)}\n" + \
-                    f"Train Samples: {len(self.train_samples)}\n" + \
-                    f"Test Samples: {len(self.test_samples)}\n" + \
-                    f"Data Map: {self.samples.data_map}"
+        string = "---------------------------------------------------------------"
+        f"\nDatasetManager\n" + \
+                f"Root Path: {self.root_path}\n" + \
+                f"Transformers: {self.transform['length']}\n" + \
+                f"Unique Crops({len(self.unique_crops)}): {self.unique_crops}\n" + \
+                f"Unique States({len(self.unique_states)}): {self.unique_states}\n" + \
+                f"Samples: {len(self.samples)}\n" + \
+                f"Train Samples: {len(self.train_samples)}\n" + \
+                f"Test Samples: {len(self.test_samples)}\n" + \
+                f"Data Map: {self.create_data_map(self.samples)}\n" + \
+                "---------------------------------------------------------------\n"
         return string
+    
+    def create_data_map(self, samples: List[Dict]) -> Dict[str, Dict[str, int]]:
+
+        crop_map_dict = {}
+        state_map_dict = {}
+        for sample in samples:
+            if sample['crop_label'] not in crop_map_dict:
+                crop_map_dict[sample['crop_label']] = 1  # Initialize to 1 for the first occurrence
+            else:
+                crop_map_dict[sample['crop_label']] += 1
+            
+            if sample['state_label'] not in state_map_dict:
+                state_map_dict[sample['state_label']] = 1  # Initialize to 1 for the first occurrence
+            else:
+                state_map_dict[sample['state_label']] += 1
+        
+        
+        return {'crops': crop_map_dict, 'states': state_map_dict}
     
     def _get_samples(self, root_path: str):
         logger.debug(f"Getting samples from {root_path}")
@@ -186,12 +209,12 @@ class DatasetManager():
         return samples
     
     def _add_crop_idx_to_samples(self, samples: SampleList) -> SampleList:
-        for idx, sample in enumerate(samples):
+        for sample in samples:
             sample['crop_idx'] = self.unique_crops.index(sample['crop_label'])
         return samples
     
     def _add_state_idx_to_samples(self, samples: SampleList) -> SampleList:
-        for idx, sample in enumerate(samples):
+        for sample in samples:
             sample['state_idx'] = self.unique_states.index(sample['state_label'])
         return samples
 

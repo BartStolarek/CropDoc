@@ -32,6 +32,7 @@ def run_test_pipeline(config: dict, dataset_path: str, model_path: str = None):
     
     try:
         dataset_manager = DatasetManager(dataset_path, transform=transformer_manager.transformers, reduce_dataset=model_config['data']['usage'])
+        logger.debug(dataset_manager)
     except Exception as e:
         logger.error(f"Error initialising dataset manager: {e}")
         raise e
@@ -172,6 +173,7 @@ class ResNet50v2TestPipeline:
                 state_label_idx = batch['state_idx']
 
                 images = []
+                
                 for path, split in zip(img_paths, splits):
                     images.append(self.dataset.load_image_from_path(path, split))
                 images_tensor = torch.stack(images, dim=0).to(self.device)
@@ -199,6 +201,29 @@ class ResNet50v2TestPipeline:
                 all_true_labels.extend(state_label_idx.tolist())
                 all_predicted_labels.extend(predicted_crop.tolist())
                 all_predicted_labels.extend(predicted_state.tolist())
+        
+        logger.debug(f'test_loss_crop: {test_loss_crop}')
+        logger.debug(f'test_loss_state: {test_loss_state}')
+        logger.debug(f'test_correct_crop: {test_correct_crop}')
+        logger.debug(f'test_correct_state: {test_correct_state}')
+        logger.debug(f'test_total: {test_total}')
+        # 
+        true_label_map = {}
+        for true in all_true_labels:
+            if true in true_label_map.keys():
+                true_label_map[true] += 1
+            else:
+                true_label_map[true] = 1
+                
+        logger.debug(f'true_label_map: {true_label_map}')
+        
+        predicted_label_map = {}
+        for pred in all_predicted_labels:
+            if pred in predicted_label_map.keys():
+                predicted_label_map[pred] += 1
+            else:
+                predicted_label_map[pred] = 1
+        logger.debug(f'predicted_label_map: {predicted_label_map}')
 
         test_loss_crop /= len(test_loader)
         test_loss_state /= len(test_loader)
