@@ -52,8 +52,8 @@ class vgg16(nn.Module):
     
     def classifier(self, num_classes: int, dropout:float) -> nn.Sequential:
         return nn.Sequential(self.linLayer(7*7*512, 4096, dropout),
-                      self.linLayer(4096, 4096, dropout),
-                      nn.Linear(4096, num_classes))
+                      self.linLayer(4096, 1048, dropout),
+                      nn.Linear(1048, num_classes))
 
     def linLayer(self, layer_in: int, layer_out: int, dropout: float) -> nn.Sequential:
         return nn.Sequential(nn.Linear(layer_in, layer_out),
