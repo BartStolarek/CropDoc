@@ -12,6 +12,7 @@ from pprint import pprint
 import warnings
 from sklearn.model_selection import KFold
 import numpy as np
+import time
 warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.parallel.parallel_apply")
 
 
@@ -117,12 +118,6 @@ class CropCCMTDataset(torch.utils.data.Dataset):
                
         self.crops = self._get_unique_crops()
         self.states = self._get_unique_states()
-        
-        
-    
-    def get_data_map(self):
-        crop_map_dict = {}
-        state_map_dict = {}
         
     
     def get_unique_crop_count(self):
@@ -365,6 +360,9 @@ class Pipeline():
             [1 - self.model_config['training']['val_split'], self.model_config['training']['val_split']]
         )
         
+        logger.info(f'Train dataset size: {len(train_dataset)}')
+        logger.info(f'Validation dataset size: {len(val_dataset)}')
+        
         # Create data loaders with random split
         train_loader = self._get_dataloader(dataset=train_dataset, shuffle=True)
         val_loader = self._get_dataloader(dataset=val_dataset, shuffle=False)
@@ -400,8 +398,13 @@ class Pipeline():
         correct_state = 0
         total = 0
         
+        average_time = []
+        
         for i, (images, crop_labels, state_labels) in enumerate(data_loader):
             
+            start_time = time.time()
+            
+            print(f'Batch {i}/{len(data_loader)}')
             if train:
                 self.optimizer.zero_grad()
                 
@@ -432,6 +435,12 @@ class Pipeline():
             correct_crop += (predicted_crop == crop_labels).sum().item()
             correct_state += (predicted_state == state_labels).sum().item()
             total += crop_labels.size(0)
+            
+            end_time = time.time()
+            duration = end_time - start_time
+            average_time.append(duration)
+            
+            print(f'Avg Time: {np.mean(average_time)}, estimated total time in minutes: {np.mean(average_time) * len(data_loader) / 60}')
             
         return {
             'loss_crop': loss_crop_total / len(data_loader),
