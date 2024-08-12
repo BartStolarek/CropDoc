@@ -59,7 +59,3 @@ class vgg16(nn.Module):
         return nn.Sequential(nn.Linear(layer_in, layer_out),
                       nn.ReLU(),
                       nn.Dropout(dropout))
-    
-
-
-vgg = vgg16(10)
