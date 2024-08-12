@@ -11,7 +11,7 @@ model:
   training:
     epochs: 1
     val_split: 0.1
-    batch_size: 48
+    batch_size: 512
     num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
     lr_scheduler:
       step_size: 3
