@@ -40,13 +40,15 @@ def format():
 @cli.command('pipeline')
 @click.option('--file', '-f', 'file', required=True, help='File of pipeline (the specific file in app/scripts/pipeline/...)')
 @click.option('--method', '-m', 'method', required=True, help='Method of pipeline (the specific function in the category file)')
-@click.option('--dataset', '-d', 'dataset', required=True, help='Dataset path to run the pipeline on')
-@click.option('--config', '-c', 'config', help='Model configuration file for pipeline')
-def pipeline(file, method, dataset, config):
+@click.option('--config', '-c', 'config', required=True, help='Model configuration file for pipeline')
+@click.option('--dataset', '-d', 'dataset', default=None, help='Dataset path to run the pipeline on')
+@click.option('--kwargs', '-k', multiple=True, help='Additional keyword arguments as key=value pairs')
+def pipeline(file, method, config, dataset, kwargs):
     """Runs the pipeline script"""
     from app.handler import handle_pipeline
     logger.debug("Pipeline command called")
-    result = handle_pipeline(file=file, method=method, dataset_path=dataset, model_config=config)
+    kwargs_dict = dict(kv.split('=') for kv in kwargs)
+    result = handle_pipeline(file=file, method=method, dataset=dataset, model_config=config, **kwargs_dict)
     logger.info(f"Pipeline command {'successful' if result else 'failed'}")
 
 @cli.command('train')
