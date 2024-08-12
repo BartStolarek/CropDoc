@@ -9,7 +9,7 @@ model:
   architecture:
     - type: ResNet
   training:
-    epochs: 1
+    epochs: 240
     val_split: 0.1
     batch_size: 512
     num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading

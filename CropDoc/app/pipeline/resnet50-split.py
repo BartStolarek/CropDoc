@@ -404,7 +404,7 @@ class Pipeline():
             
             start_time = time.time()
             
-            print(f'Batch {i}/{len(data_loader)}')
+            #print(f'Batch {i}/{len(data_loader)}')
             if train:
                 self.optimizer.zero_grad()
                 
@@ -440,7 +440,7 @@ class Pipeline():
             duration = end_time - start_time
             average_time.append(duration)
             
-            print(f'Avg Time: {np.mean(average_time)}, estimated total time in minutes: {np.mean(average_time) * len(data_loader) / 60}')
+        print(f'Avg Time: {np.mean(average_time)}, estimated total time in minutes: {np.mean(average_time) * len(data_loader) / 60}')
             
         return {
             'loss_crop': loss_crop_total / len(data_loader),
