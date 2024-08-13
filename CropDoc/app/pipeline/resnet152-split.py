@@ -451,7 +451,7 @@ class Pipeline():
             duration = end_time - start_time
             average_time.append(duration)
             
-        print(f'Avg Time: {np.mean(average_time)}, estimated total time in minutes: {np.mean(average_time) * len(data_loader) / 60}')
+            print(f'Avg Time: {np.mean(average_time)}, estimated total time in minutes: {np.mean(average_time) * len(data_loader) / 60}')
             
         return {
             'loss_crop': loss_crop_total / len(data_loader),
