@@ -3,13 +3,13 @@ pipeline:
   dataset_dir: data/datasets/CCMT Dataset-Augmented
   output_dir: data/output
 model:
-  name: ResNet50
+  name: ResNet152
   type: Classification
-  version: 1.2
+  version: 1.0
   architecture:
     - type: ResNet
   training:
-    epochs: 200
+    epochs: 10
     val_split: 0.1
     batch_size: 512
     num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
