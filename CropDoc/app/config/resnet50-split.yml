@@ -13,15 +13,15 @@ model:
     val_split: 0.1
     batch_size: 512
     num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
-    learning_rate: 0.001
+    learning_rate: 0.005
     lr_scheduler:
       StepLR:
         step_size: 30
         gamma: 0.3
       ReduceLROnPlateau:
-        factor: 0.3
-        patience: 10
-        threshold: 0.001
+        factor: 0.3  # Factor by which the learning rate will be reduced. new_lr = lr * factor
+        patience: 10  # Number of epochs with no improvement after which learning rate will be reduced
+        threshold: 0.001  # Threshold for measuring the new optimum, to only focus on significant changes
     loss_function: # List of loss functions can be found here: https://pytorch.org/docs/stable/nn.html#loss-functions  
       type: CrossEntropyLoss
   data:
