@@ -271,7 +271,7 @@ class MultiHeadResNetModel(torch.nn.Module):
     
     def forward(self, x):
         x = x.to(self.device)  # Move input to GPU if available
-        x = self.resnet(x) #  x.shape = torch.Size(<batch_size>, <num_features>)
+        x = self.resnet(x)  # x.shape = torch.Size(<batch_size>, <num_features>)
         crop_out = self.crop_fc(x)
         state_out = self.state_fc(x)
         return crop_out, state_out
@@ -419,11 +419,13 @@ class Pipeline():
             # Calculate loss
             loss_crop = self.crop_criterion(crop_predictions, crop_labels)  # torch.Tensor(<float>, gradient_function=<>)
             loss_state = self.state_criterion(state_predictions, state_labels)  # torch.Tensor(<float>, gradient_function=<>)
-            loss = loss_crop + loss_state  # torch.Tensor(<float>, gradient_function=<>) + torch.Tensor(<float>, gradient_function=<>)
+            # loss = loss_crop + loss_state  # torch.Tensor(<float>, gradient_function=<>) + torch.Tensor(<float>, gradient_function=<>)
             
             if train:
                 # Backward pass
-                loss.backward()
+                # loss.backward()
+                loss_crop.backward()
+                loss_state.backward()
                 self.optimizer.step()
             
             loss_crop_total += loss_crop.item()  # Obtain just the float value and add it to the total loss
@@ -585,3 +587,8 @@ def predict_one(config, dataset=None, model_path=None):
     
     logger.info('Prediction complete')
     return pipeline
+
+
+# Provide summary structure
+# Get confusion matrix
+# Get classification report
