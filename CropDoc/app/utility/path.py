@@ -1,5 +1,7 @@
 import os
+
 from app.config import AppConfig
+
 
 def resolve_path(path):
     """Resolve and return the absolute path."""
@@ -18,12 +20,14 @@ def is_directory(path):
 
 def file_exists(path):
     """Check if a file exists at the given path."""
-    return os.path.exists(resolve_path(path)) and os.path.isfile(resolve_path(path))
+    return os.path.exists(resolve_path(path)) and os.path.isfile(
+        resolve_path(path))
 
 
 def directory_exists(path):
     """Check if a directory exists at the given path."""
-    return os.path.exists(resolve_path(path)) and os.path.isdir(resolve_path(path))
+    return os.path.exists(resolve_path(path)) and os.path.isdir(
+        resolve_path(path))
 
 
 def create_dir_if_not_exists(directory):
@@ -54,6 +58,7 @@ def list_files(directory, extension=None):
             file_list.append(file)
     return file_list
 
+
 def join_path(*paths):
     """
     Join multiple paths ensuring no duplication of common parts.
@@ -65,6 +70,7 @@ def join_path(*paths):
         str: Joined path.
     """
     return os.path.join(*paths)
+
 
 def combine_path(*paths):
     """
@@ -78,10 +84,10 @@ def combine_path(*paths):
     """
     # Resolve all paths to their absolute forms
     resolved_paths = [resolve_path(path) for path in paths]
-    
+
     # Initialize the combined path with the first resolved path
     combined_path = resolved_paths[0]
-    
+
     # Iterate through remaining paths to combine
     for path in resolved_paths[1:]:
         # Check if the current combined path is already a subdirectory of the new path
@@ -92,8 +98,9 @@ def combine_path(*paths):
         else:
             # Otherwise, combine the paths
             combined_path = os.path.join(combined_path, path.lstrip(os.sep))
-    
+
     return combined_path
+
 
 def absolute_path(path):
     """Return the absolute path of a given path."""
@@ -133,6 +140,7 @@ def get_cropdoc_directory():
 def get_app_directory():
     """Provide the path to the app directory"""
     return AppConfig.APP_DIR
+
 
 def find_directory(path, name):
     """Find a directory with a given name in the path."""

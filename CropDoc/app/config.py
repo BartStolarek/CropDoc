@@ -12,23 +12,24 @@ root_project_dir = check_dir
 # Find the config env file
 def find_config_env(start_dir):
     current_dir = os.path.abspath(start_dir)
-    
+
     while current_dir:
         config_env_path = os.path.join(current_dir, 'config.env')
         if os.path.isfile(config_env_path):
             return config_env_path
-        
+
         # Move to the parent directory
         parent_dir = os.path.dirname(current_dir)
-        
+
         # If current directory is the same as parent directory, break the loop
         if current_dir == parent_dir:
             break
-        
+
         # Update current directory to parent directory for next iteration
         current_dir = parent_dir
-    
+
     return None
+
 
 # Import the file
 def import_config_env(config_env_path):
@@ -38,7 +39,7 @@ def import_config_env(config_env_path):
         if len(var) == 2:
             os.environ[var[0]] = var[1].replace("\"", "")
 
-        
+
 config_env_path = find_config_env(app_directory)
 
 # Look for config.env on the same level as config.py
@@ -48,25 +49,27 @@ else:
     # Check if its in root
     config_env_path = os.path.join(root_project_dir, 'config.env')
     if os.path.exists(config_env_path):
-        print('config.env file not found in app directory, but found in root directory. Advise to move it to app directory.')
+        print(
+            'config.env file not found in app directory, but found in root directory. Advise to move it to app directory.'
+        )
         print('Importing environment from .env file')
         import_config_env(config_env_path)
     else:
         print(
             '<root>/app/config.env file not found, please read README.md for config.env file structure'
         )
-        
-        
-        
+
+
 class AppConfig:
     # Set ROOT_DIR to the parent directory of 'CropDoc'
-    ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    ROOT_DIR = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..', '..'))
     CROPDOC_DIR = os.path.join(ROOT_DIR, 'CropDoc')
     APP_DIR = os.path.join(CROPDOC_DIR, 'app')
     DATA_DIR = os.path.join(CROPDOC_DIR, 'data')
     CONFIG_FILE = os.path.join(APP_DIR, 'config.env')
     APP_NAME = os.environ.get('APP_NAME', 'App_Name_Missing')
-    
+
     if os.environ.get('SECRET_KEY'):
         SECRET_KEY = os.environ.get('SECRET_KEY')
     else:
@@ -88,7 +91,7 @@ class DevelopmentConfig(AppConfig):
     ENV = 'development'
     DEBUG = True
     LOGGING_LEVEL = os.environ.get('LOGGING_LEVEL', 'DEBUG')
-    
+
     @classmethod
     def init_app(cls, app):
         print('Development Environment Activated.')
@@ -97,6 +100,7 @@ class DevelopmentConfig(AppConfig):
 class ProductionConfig(AppConfig):
     ENV = 'production'
     DEBUG = False
+
     @classmethod
     def init_app(cls, app):
         AppConfig.init_app(app)

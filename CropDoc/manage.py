@@ -15,17 +15,19 @@ app = create_app(config=AppConfig)
 def cli():
     """Management script for the application."""
 
+
 @cli.command('hello')
 def hello():
     """Prints hello world"""
     print('Hello World')
 
+
 @cli.command('format')
 def format():
     """Runs autoflake, yapf and isort formatters over the project"""
-    autoflake_cmd = 'autoflake --remove-all-unused-imports --recursive --remove-unused-variables --in-place *.py server/'
-    isort_cmd = 'isort -rc *.py server/'
-    yapf_cmd = 'yapf -r -i *.py server/'
+    autoflake_cmd = 'autoflake --remove-all-unused-imports --recursive --remove-unused-variables --in-place *.py app/'
+    isort_cmd = 'isort -rc *.py app/'
+    yapf_cmd = 'yapf -r -i *.py app/'
 
     print('Running {}'.format(autoflake_cmd))
     subprocess.call(autoflake_cmd, shell=True)
@@ -38,18 +40,44 @@ def format():
 
 
 @cli.command('pipeline')
-@click.option('--file', '-f', 'file', required=True, help='File of pipeline (the specific file in app/scripts/pipeline/...)')
-@click.option('--method', '-m', 'method', required=True, help='Method of pipeline (the specific function in the category file)')
-@click.option('--config', '-c', 'config', required=True, help='Model configuration file for pipeline')
-@click.option('--dataset', '-d', 'dataset', default=None, help='Dataset path to run the pipeline on')
-@click.option('--kwargs', '-k', multiple=True, help='Additional keyword arguments as key=value pairs')
+@click.option(
+    '--file',
+    '-f',
+    'file',
+    required=True,
+    help='File of pipeline (the specific file in app/scripts/pipeline/...)')
+@click.option(
+    '--method',
+    '-m',
+    'method',
+    required=True,
+    help='Method of pipeline (the specific function in the category file)')
+@click.option('--config',
+              '-c',
+              'config',
+              required=True,
+              help='Model configuration file for pipeline')
+@click.option('--dataset',
+              '-d',
+              'dataset',
+              default=None,
+              help='Dataset path to run the pipeline on')
+@click.option('--kwargs',
+              '-k',
+              multiple=True,
+              help='Additional keyword arguments as key=value pairs')
 def pipeline(file, method, config, dataset, kwargs):
     """Runs the pipeline script"""
     from app.handler import handle_pipeline
     logger.debug("Pipeline command called")
     kwargs_dict = dict(kv.split('=') for kv in kwargs)
-    result = handle_pipeline(file=file, method=method, dataset=dataset, model_config=config, **kwargs_dict)
+    result = handle_pipeline(file=file,
+                             method=method,
+                             dataset=dataset,
+                             model_config=config,
+                             **kwargs_dict)
     logger.info(f"Pipeline command {'successful' if result else 'failed'}")
+
 
 @cli.command('train')
 def train():
@@ -57,13 +85,35 @@ def train():
     from app.handler import handle_train_model
     logger.debug("Training command called")
     handle_train_model()
-    
+
+
 @cli.command('process')
-@click.option('--input', '-i', 'input_path', required=True, help='Input path for Data')
-@click.option('--output', '-o', 'output_path', required=True, help='Output path for Data')
-@click.option('--file', '-f', 'file', required=True, help='File of processing (the specific file in app/scripts/process/...)')
-@click.option('--method', '-m', 'method', required=True, help='Method of processing (the specific function in the category file)')
-@click.option('--kwargs', '-k', multiple=True, help='Additional keyword arguments as key=value pairs')
+@click.option('--input',
+              '-i',
+              'input_path',
+              required=True,
+              help='Input path for Data')
+@click.option('--output',
+              '-o',
+              'output_path',
+              required=True,
+              help='Output path for Data')
+@click.option(
+    '--file',
+    '-f',
+    'file',
+    required=True,
+    help='File of processing (the specific file in app/scripts/process/...)')
+@click.option(
+    '--method',
+    '-m',
+    'method',
+    required=True,
+    help='Method of processing (the specific function in the category file)')
+@click.option('--kwargs',
+              '-k',
+              multiple=True,
+              help='Additional keyword arguments as key=value pairs')
 def process(input_path, output_path, file, method, kwargs):
     """A Command line command that will process the data
     via the specified category file and method function and save the output to the output path
@@ -77,7 +127,8 @@ def process(input_path, output_path, file, method, kwargs):
     """
     from app.handler import handle_process_data
     kwargs_dict = dict(kv.split('=') for kv in kwargs)
-    result = handle_process_data(input_path, output_path, file, method, **kwargs_dict)
+    result = handle_process_data(input_path, output_path, file, method,
+                                 **kwargs_dict)
     logger.info(f"Processing {'successful' if result else 'failed'}")
 
 

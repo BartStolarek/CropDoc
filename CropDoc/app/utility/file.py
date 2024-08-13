@@ -1,11 +1,15 @@
-from app.config import AppConfig
-from app.utility.path import join_path, file_exists, resolve_path
 import importlib.util
-from loguru import logger
+
 import yaml
+from loguru import logger
+
+from app.config import AppConfig
+from app.utility.path import file_exists, join_path, resolve_path
 
 
-def get_file_path(directory: str, file_name: str, extension: str = None) -> str:
+def get_file_path(directory: str,
+                  file_name: str,
+                  extension: str = None) -> str:
     """ Get the file path for the given directory and file name.
 
     Args:
@@ -21,8 +25,11 @@ def get_file_path(directory: str, file_name: str, extension: str = None) -> str:
         if extension:
             file_name = f"{file_name}.{extension}"
         else:
-            logger.error(f"No extension provided via command line or argument for {file_name}")
-    file_path = resolve_path(join_path(AppConfig.APP_DIR + f"/{directory}/" + f"{file_name}"))
+            logger.error(
+                f"No extension provided via command line or argument for {file_name}"
+            )
+    file_path = resolve_path(
+        join_path(AppConfig.APP_DIR + f"/{directory}/" + f"{file_name}"))
     if not file_exists(file_path):
         logger.error(f"File {file_name} does not exist in at {file_path}")
         return None
@@ -49,7 +56,7 @@ def import_file(file_path: str):
         return False
     logger.info(f"Successfully imported python file from {file_path}")
     return python_file
-    
+
 
 def get_method(file, method_name: str):
     """ Get the method from a python file.
@@ -69,7 +76,10 @@ def get_method(file, method_name: str):
     return getattr(file, method_name)
 
 
-def get_file_method(directory: str, file_name: str, method_name: str, extension: str = None):
+def get_file_method(directory: str,
+                    file_name: str,
+                    method_name: str,
+                    extension: str = None):
     """ Get the method from a python file in a given directory.
 
     Args:
@@ -80,7 +90,9 @@ def get_file_method(directory: str, file_name: str, method_name: str, extension:
     Returns:
         _type_: the method if it exists, None otherwise
     """
-    logger.debug(f"Getting method {method_name} from {file_name}.{extension} in {directory}")
+    logger.debug(
+        f"Getting method {method_name} from {file_name}.{extension} in {directory}"
+    )
     file_path = get_file_path(directory, file_name, extension=extension)
     if not file_path:
         return None
@@ -90,7 +102,8 @@ def get_file_method(directory: str, file_name: str, method_name: str, extension:
     method = get_method(file, method_name)
     if not method:
         return None
-    logger.info(f"Obtained method {method_name} from {file_name}.py in {directory}")
+    logger.info(
+        f"Obtained method {method_name} from {file_name}.py in {directory}")
     return method
 
 
@@ -108,13 +121,13 @@ def load_yaml_file_as_dict(directory: str, file_name: str) -> dict:
     try:
         with open(file_path, 'r') as file:
             config = yaml.safe_load(file)
-        logger.info(f"Successfully loaded model configuration file {file_name}.yml")
+        logger.info(
+            f"Successfully loaded model configuration file {file_name}.yml")
         return config
     except FileNotFoundError:
-        logger.error(f"Model configuration file {file_name}.yml not found at {file_path}")
+        logger.error(
+            f"Model configuration file {file_name}.yml not found at {file_path}"
+        )
     except yaml.YAMLError as e:
         logger.error(f"Error parsing YAML file {file_name}.yml: {e}")
     return None
-
-
-

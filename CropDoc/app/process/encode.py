@@ -1,8 +1,10 @@
 import os
-import numpy as np
-from PIL import Image
+
 import cv2
+import numpy as np
 from loguru import logger
+from PIL import Image
+
 
 def grayscale_using_cv2_recursive(input_directory, output_directory, **kwargs):
     """
@@ -13,7 +15,9 @@ def grayscale_using_cv2_recursive(input_directory, output_directory, **kwargs):
         input_directory (str): Path to the directory containing images.
         output_directory (str): Path to the directory where processed images will be saved.
     """
-    logger.debug(f"Encoding images recursively from {input_directory} to {output_directory}")
+    logger.debug(
+        f"Encoding images recursively from {input_directory} to {output_directory}"
+    )
 
     # Ensure output directory exists; create if it doesn't
     if not os.path.exists(output_directory):
@@ -35,7 +39,8 @@ def grayscale_using_cv2_recursive(input_directory, output_directory, **kwargs):
                     img_array = np.array(img)  # Convert image to numpy array
 
                     # Perform encoding operation (e.g., grayscale conversion using cv2)
-                    encoded_img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
+                    encoded_img_array = cv2.cvtColor(img_array,
+                                                     cv2.COLOR_BGR2GRAY)
 
                     # Convert numpy array back to image
                     encoded_img = Image.fromarray(encoded_img_array)
@@ -48,27 +53,26 @@ def grayscale_using_cv2_recursive(input_directory, output_directory, **kwargs):
 
                     # Construct new filename with directory path and original filename
                     new_filename = f"{relative_path}_{filename}"
-                    new_file_path = os.path.join(output_directory, new_filename)
+                    new_file_path = os.path.join(output_directory,
+                                                 new_filename)
 
                     # Save the encoded image, replacing the original image
                     encoded_img.save(new_file_path)
 
-                    logger.debug(f"Encoded and saved: {file_path} -> {new_file_path}")
+                    logger.debug(
+                        f"Encoded and saved: {file_path} -> {new_file_path}")
 
                 except Exception as e:
                     logger.error(f"Error encoding {file_path}: {e}")
-                    error_dict = {
-                        "file": filename,
-                        "error": str(e)
-                    }
+                    error_dict = {"file": filename, "error": str(e)}
                     errors.append(error_dict)
-                    
+
     if errors:
-        logger.error("At least one file failed to be processed, run in debug mode to see the errors")
+        logger.error(
+            "At least one file failed to be processed, run in debug mode to see the errors"
+        )
         logger.debug(errors)
         return False
 
     logger.info(f"Completed encoding images recursively")
     return True
-
-
