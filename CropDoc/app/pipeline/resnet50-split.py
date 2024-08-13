@@ -424,7 +424,7 @@ class Pipeline():
             if train:
                 # Backward pass
                 # loss.backward()
-                loss_crop.backward()
+                loss_crop.backward(retain_graph=True)
                 loss_state.backward()
                 self.optimizer.step()
             
