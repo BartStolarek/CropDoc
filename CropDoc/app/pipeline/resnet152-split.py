@@ -255,7 +255,7 @@ class MultiHeadResNetModel(torch.nn.Module):
     def __init__(self, num_classes_crop, num_classes_state):
         super(MultiHeadResNetModel, self).__init__()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.resnet = torchvision.models.resnet152(weights=torchvision.models.ResNet50_Weights.DEFAULT)
+        self.resnet = torchvision.models.resnet152(weights=torchvision.models.ResNet152_Weights.DEFAULT)
         num_ftres = self.resnet.fc.in_features
         self.resnet.fc = torch.nn.Identity()
         self.crop_fc = torch.nn.Linear(num_ftres, num_classes_crop)
