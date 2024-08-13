@@ -348,7 +348,8 @@ class Pipeline():
             epoch_metrics = self.train_one_epoch(idx=epoch)
             
             # Update the learning rate
-            self.scheduler.step()
+            val_loss = epoch_metrics['val_metrics']['loss_crop'] + epoch_metrics['val_metrics']['loss_state']
+            self.scheduler.step(metrics=val_loss)
             
             logger.info(f'Epoch {epoch} Metrics: {self.format_metrics(epoch_metrics)}')
             train_metrics.append(epoch_metrics)
