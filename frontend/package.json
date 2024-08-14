@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:css": "tailwindcss -i ./src/styles/globals.css -o ./src/styles/output.css --minify",
+    "watch:css": "tailwindcss -i ./src/styles/globals.css -o ./src/styles/output.css --watch",
+    "test": "jest"
   },
   "dependencies": {
     "next": "14.2.5",
