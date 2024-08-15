@@ -10,7 +10,7 @@ const CropDocLogo = () => {
   return (
     <div className="flex items-center">
       <span 
-        className={`text-4xl font-bold -top-3 ${isDark ? 'text-gray-100' : 'text-gray-900'} relative`}
+        className={`text-4xl font-bold -top-3  relative`}
       >
         Crop
         <span 

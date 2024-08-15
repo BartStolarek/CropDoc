@@ -1,3 +1,5 @@
+
+
 import {nextui} from '@nextui-org/theme'
 
 /** @type {import('tailwindcss').Config} */
@@ -11,5 +13,8 @@ module.exports = {
   theme: {
     extend: {},
   },
- plugins: [nextui()],
+ plugins: [
+  nextui(),
+ ],
 }
+
