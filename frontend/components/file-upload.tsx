@@ -1,3 +1,5 @@
+// File upload component credit to https://ui.aceternity.com/components/file-upload
+
 import { cn } from "@/lib/utils";
 import React, { useRef, useState } from "react";
 import { motion } from "framer-motion";

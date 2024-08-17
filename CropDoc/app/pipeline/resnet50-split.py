@@ -576,32 +576,50 @@ class Pipeline():
         )
         plt.axis('off')
         plt.show()
-
-    def predict(self, image_path):
+        
+    def predict_single_image_from_path(self, image_path):
         # Predict a single image
         image = Image.open(image_path).convert('RGB')
         image = self.transformer_manager.transformers['test'](image)
-        image = image.unsqueeze(0).to(self.loaded_model.device)
+        image = image.unsqueeze(0).to(self.model.device)
         with torch.no_grad():
-            crop_prediction, state_prediction = self.loaded_model(image)
+            crop_prediction, state_prediction = self.model(image)
 
         # Get the predicted classes
         _, predicted_crop = torch.max(crop_prediction, 1)
         _, predicted_state = torch.max(state_prediction, 1)
 
-        print(
-            f'Predicted Crop: {self.train_data.crops[predicted_crop.item()]}')
-        print(
-            f'Predicted State: {self.train_data.states[predicted_state.item()]}'
-        )
+        # Apply softmax to get probabilities
+        crop_probabilities = torch.nn.functional.softmax(crop_prediction, dim=1)
+        state_probabilities = torch.nn.functional.softmax(state_prediction, dim=1)
 
-        plt.imshow(image.squeeze().permute(1, 2, 0).cpu().numpy())
-        plt.title(
-            f'Predicted Crop: {self.train_data.crops[predicted_crop.item()]}\n Predicted State: {self.train_data.states[predicted_state.item()]}'
-        )
-        plt.axis('off')
-        plt.show()
+        # Get the crop class prediction and confidence
+        crop_prediction = self.train_data.crops[predicted_crop.item()]
+        crop_confidence = crop_probabilities[0][predicted_crop.item()].item()
+        
+        # Get the state class prediction and confidence
+        state_prediction = self.train_data.states[predicted_state.item()]
+        state_confidence = state_probabilities[0][predicted_state.item()].item()
 
+        logger.info(
+            f'Predicted Crop: {crop_prediction}')
+        logger.info(
+            f'Predicted State: {state_prediction}')
+        
+        logger.debug(f'Obtained predictions: {crop_prediction}, {state_prediction}')
+        logger.debug(f'Obtained confidences: {crop_confidence}, {state_confidence}')
+        
+        results = {
+            'crop': crop_prediction,
+            'state': state_prediction,
+            'crop_confidence': crop_confidence,
+            'state_confidence': state_confidence
+        }
+        
+        logger.info(f"Prediction complete, returning results: {results}")
+        
+        return results
+    
     def save_metrics(self, metrics: dict):
         # Save to a txt file in the output/evaluation directory
         metrics_output_dir = 'evaluate'
@@ -638,19 +656,22 @@ def predict(config, dataset=None, model_path=None):
     return pipeline
 
 
-def predict_one(config, dataset=None, model_path=None):
+def predict_one(config, dataset=None, file_path=None):
     logger.debug('Predicting')
     pipeline = Pipeline(dataset=dataset, config=config)
 
     # Load the saved model
     pipeline.load_model()
 
-    # Predict a single image from the test dataset
-    random_idx = np.random.randint(0, len(pipeline.train_data))
-    pipeline.predict_single_image_from_dataset(random_idx)
+    if not file_path:
+        # Predict a single image from the test dataset
+        random_idx = np.random.randint(0, len(pipeline.train_data))
+        result = pipeline.predict_single_image_from_dataset(random_idx)
+    else:
+        result = pipeline.predict_single_image_from_path(file_path)
 
     logger.info('Prediction complete')
-    return pipeline
+    return result
 
 
 # Provide summary structure
