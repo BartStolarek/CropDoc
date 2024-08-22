@@ -15,6 +15,8 @@ from tqdm import tqdm
 from app.pipeline_helper.transformer import TransformerManager
 from app.pipeline_helper.dataset import CropCCMTDataset
 
+from pprint import pprint
+
 
 class MultiHeadResNetModel(torch.nn.Module):
     """A multi-head ResNet model for the CropCCMT dataset
@@ -109,16 +111,27 @@ class Pipeline():
         """
         logger.debug("Starting training the model")
         
+        # Check if pre-existing pipeline exists
+        if os.path.exists(os.path.join(self.pipeline_output_dir, 'final')):
+            pipeline_exists = True
+        
         # Load the transformer manager to handle loading transformers from config
         self.transformer_manager = TransformerManager(
             self.pipeline_config['data']['transformers']  # TODO: Add to report that we are using transformers to augment the training data
         )
         
         # Load the train datasets
+        dataset_kwargs = {
+            'dataset_path': self.dataset_root,
+            'transformers': self.transformer_manager.transformers['train'],
+            'split': 'train'
+        }
+        if pipeline_exists:
+            dataset_kwargs['crop_index_map'] = self.crop_index_map
+            dataset_kwargs['state_index_map'] = self.state_index_map
+        
         self.train_data = CropCCMTDataset(
-            dataset_path=self.dataset_root,
-            transformers=self.transformer_manager.transformers['train'],
-            split='train'
+            **dataset_kwargs
         )
         
         self.crop_index_map = self.train_data.crop_index_map
@@ -158,12 +171,8 @@ class Pipeline():
         
         logger.info('Pipeline Initialisation Complete')
         
-        
-        
         # Define the number of epochs to train for
         epochs = self.pipeline_config['training']['epochs']
-        
-        
         
         logger.info('\nTraining loop index:\n' +
                     "T: Train, V: Validation\n" +
@@ -172,8 +181,7 @@ class Pipeline():
                     )
         
         # Define the best validation loss
-        best_val_loss = np.inf  # Set the best validation loss to infinity so that the first validation loss will always be better
-        checkpoint_interval = 10  # The minimum epochs to go buy before checking to save another checkpoint
+        checkpoint_interval = self.pipeline_config['training']['checkpoint_interval']  # The minimum epochs to go buy before checking to save another checkpoint
 
         # Set epoch range
         start = 1
@@ -190,7 +198,7 @@ class Pipeline():
         for i in epochs_progress:  # TODO: Add to the report the number of epochs we trained for
             
             # Train the model for one epoch
-            epoch_metrics = self._train_one_epoch(idx=i)
+            epoch_metrics = self._train_one_epoch()
             
             # Update the learning rate
             val_loss = epoch_metrics['val']['loss']['combined']
@@ -203,10 +211,10 @@ class Pipeline():
                 self.performance_metrics['epoch'] = i
                 self.save_pipeline(epoch=i)
                 
-            # Check if the current epoch is far enough from previous checkpoint
-            elif (i - last_checkpoint_epoch) >= checkpoint_interval:
+            # Check if the current epoch is far enough from previous checkpoint and also past halfway for epoch
+            elif (i - last_checkpoint_epoch) >= checkpoint_interval and i >= end / 4:
                 # Check if current epoch has better validation loss than current best
-                if self._is_better_metric(epoch_metrics):
+                if self._is_better_metric(epoch_metrics['val']):
                     self.performance_metrics = epoch_metrics
                     self.performance_metrics['epoch'] = i
                     self.save_pipeline(epoch=i)
@@ -229,16 +237,16 @@ class Pipeline():
             first_epoch = False
         
         logger.info('Training loop complete')
-        logger.debug('Finding best performance metrics')
-         
-        # Using the save progression metrics obtain best performance metrics
-        for epoch, metrics in self.progression_metrics:
-            if self._is_better_metric(metrics):
-                self.performance_metrics = metrics
-                self.performance_metrics['epoch'] = epoch
-                
-        logger.info(f"Best performance metrics found:\n {self.performance_metrics}")
         
+        # Remove batches from performance metrics
+        if 'train' in self.performance_metrics.keys() and 'batches' in self.performance_metrics['train'].keys():
+            self.performance_metrics['train'].pop('batches')
+        if 'val' in self.performance_metrics.keys() and 'batches' in self.performance_metrics['val'].keys():
+            self.performance_metrics['val'].pop('batches')
+        if 'test' in self.performance_metrics.keys() and 'batches' in self.performance_metrics['test'].keys():
+            self.performance_metrics['test'].pop('batches') 
+        #logger.info(f"Best performance metrics :\n {self.performance_metrics}")
+        pprint(self.performance_metrics)
         logger.info('Training pipeline complete')
 
     def save_pipeline(self, epoch: int = None):
@@ -248,7 +256,6 @@ class Pipeline():
         Args:
             epoch (int, optional): The epoch number to save the checkpoint. Defaults to None if saving the final pipeline.
         """
-        logger.debug("Saving the pipeline")
         
         # Create the save dictionary
         save_dict = {
@@ -264,32 +271,24 @@ class Pipeline():
         # Save the pipeline as a checkpoint or the final pipeline depending if a epoch was provided
         if epoch is not None:
             directory = os.path.join(self.pipeline_output_dir, 'checkpoints')
-            file_name = f'checkpoint-epoch-{epoch}.pth'
+            file_name = f'{self.pipeline_name}-{self.pipeline_version}-epoch-{epoch}.pth'
             save_dict['epoch'] = epoch
         else:
-            directory = os.path.join(self.pipeline_output_dir, 'pipeline')
-            file_name = 'pipeline.pth'
+            directory = os.path.join(self.pipeline_output_dir, 'final')
+            file_name = f'{self.pipeline_name}-{self.pipeline_version}.pth'
         
         # Ensure the directory exists
         os.makedirs(directory, exist_ok=True)
         
         # Save the pipeline
-        torch.save({save_dict, directory, file_name})
+        file_path = os.path.join(directory, file_name)
+        torch.save(save_dict, file_path)
         
-        logger.info(f"Pipeline saved to {os.path.join(directory, file_name)}")
+        if not epoch:
+            logger.info(f"Saved the final pipeline to {file_path}")
 
     
-    def save_index_map(self):
-        """ Save the index map, which is a dictionary of the class names and their corresponding indices
-        """
-        pass
-    
-    def save_progression(self):
-        """ Save the progression of the model training which is the change in loss and accuracy over epochs
-        """
-        pass
-    
-    def save_metrics(self):
+    def save_confusion_matrix(self):
         """ Save the following metrics:
         - Accuracy
         - Precision
@@ -318,7 +317,7 @@ class Pipeline():
         """
         pass
     
-    def _train_one_epoch(self, idx: int) -> dict:
+    def _train_one_epoch(self) -> dict:
         """ Train the model for one epoch, splitting the training data into a training and validation set
 
         Args:
@@ -327,7 +326,6 @@ class Pipeline():
         Returns:
             dict: A dictionary containing the performance metrics for this epoch's training and validation
         """
-        logger.debug(f"Training epoch {idx}")
         
         epoch_metrics = {}
         
@@ -500,6 +498,21 @@ class Pipeline():
         """
         pass
     
+    def _calculate_change(self, new_value: float, old_value: float) -> float:
+        """ Calculate the percentage change between two values
+
+        Args:
+            new_value (float): The value it is changing to
+            old_value (float): The value it is changing from
+
+        Returns:
+            float: The percentage change between the two values
+        """
+        if old_value == 0:
+            return 0
+        return new_value / old_value - 1
+    
+    
     def _is_better_metric(self, metric) -> bool:
         """ Determine if the current epoch is better than the best epoch based on the average change percentage of the loss and accuracy metrics
 
@@ -509,12 +522,14 @@ class Pipeline():
         Returns:
             bool: True if the current epoch is better than the best epoch, False otherwise
         """
-        logger.debug("Getting the best performance metrics from progression metrics")
         
         # Calculate the change percentage for each loss metric from the best metric to the currently observed metric set
-        val_loss_crop_change = metric['loss']['crop'] / self.best_metric['val']['loss']['crop'] - 1
-        val_loss_state_change = metric['loss']['state'] / self.best_metric['val']['loss']['state'] - 1
-        
+        try:
+            val_loss_crop_change = self._calculate_change(metric['loss']['crop'], self.performance_metrics['val']['loss']['crop'])
+            val_loss_state_change = self._calculate_change(metric['loss']['state'], self.performance_metrics['val']['loss']['state'])
+        except KeyError as e:
+            logger.error(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}.")
+            raise ValueError(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}")
         # Get the average loss change percentage, convert to absolute value for better comparison
         average_loss_change = abs((
             val_loss_crop_change +
@@ -522,9 +537,13 @@ class Pipeline():
         ) / 4)
         
         # Calculate the change percentage for each loss metric from the best metric to the currently observed metric set
-        val_accuracy_crop_change = metric['accuracy']['crop'] / self.best_metric['val']['accuracy']['crop'] - 1
-        val_accuracy_state_change = metric['accuracy']['state'] / self.best_metric['val']['accuracy']['state'] - 1
-        
+        try:
+            val_accuracy_crop_change = self._calculate_change(metric['accuracy']['crop'], self.performance_metrics['val']['accuracy']['crop'])
+            val_accuracy_state_change = self._calculate_change(metric['accuracy']['state'], self.performance_metrics['val']['accuracy']['state'])
+        except KeyError as e:
+            logger.error(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}.")
+            raise ValueError(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}")
+
         # Get the average accuracy change percentage, convert to absolute value for better comparison
         average_accuracy_change = abs((
             val_accuracy_crop_change +
@@ -646,20 +665,15 @@ def train(config):
     pipeline.train_model()
     
     # Save the model
-    pipeline.save_model()
+    pipeline.save_pipeline()
     
-    # Save the index map
-    pipeline.save_index_map()
-    
-    # Save the progression
-    pipeline.save_progression()
-    
-    # Save the performance metrics
-    pipeline.save_metrics()
+    # Save Confusion matrix metrics
+    pipeline.save_confusion_matrix()
     
     # Save the evaluation graphs
     pipeline.save_graphs()
     
+    # Package the pipeline for API return
     pipeline_package = pipeline.package()
     
     logger.info("Training pipeline completed")
