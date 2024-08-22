@@ -11,6 +11,7 @@ import torchvision
 from loguru import logger
 from PIL import Image
 from tqdm import tqdm
+import shutil
 
 from app.pipeline_helper.transformer import TransformerManager
 from app.pipeline_helper.dataset import CropCCMTDataset
@@ -213,7 +214,8 @@ class Pipeline():
             logger.info(f'Starting training loop for epochs {start} to {end - 1}')
             
         # Initialise epoch progress bar and training metrics list
-        epochs_progress = tqdm(range(start, end), desc="Epoch", leave=True)
+        self.terminal_width = shutil.get_terminal_size().columns
+        epochs_progress = tqdm(range(start, end), desc="Epoch", leave=True, ncols=int(self.terminal_width * 0.95))
         
         if pipeline_exists:
             self.progression_metrics = torch.load(self.pipeline_path, weights_only=True)['progression_metrics']
@@ -435,7 +437,8 @@ class Pipeline():
         }
         
         # Create the batch progress bar
-        batch_progress = tqdm(enumerate(dataloader), desc="Batch", leave=False, total=len(dataloader))
+        
+        batch_progress = tqdm(enumerate(dataloader), desc="Batch", leave=False, total=len(dataloader), ncols=int(self.terminal_width * 0.95))
         
         # Start feeding the model in batches
         for i, (images, crop_labels, state_labels) in batch_progress:
