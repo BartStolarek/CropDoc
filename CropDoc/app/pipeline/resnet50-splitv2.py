@@ -218,7 +218,7 @@ class Pipeline():
             
         # Initialise epoch progress bar and training metrics list
         self.terminal_width = shutil.get_terminal_size().columns
-        epochs_progress = tqdm(range(start, end), desc="Epoch", leave=True, ncols=int(self.terminal_width * 0.95))
+        epochs_progress = tqdm(range(start, end), desc="Epoch", leave=True, ncols=int(self.terminal_width * 0.99))
         
         if pipeline_exists:
             self.progression_metrics = torch.load(self.pipeline_path, weights_only=True)['progression_metrics']
@@ -441,7 +441,7 @@ class Pipeline():
         
         # Create the batch progress bar
         
-        batch_progress = tqdm(enumerate(dataloader), desc="Batch", leave=False, total=len(dataloader), ncols=int(self.terminal_width * 0.95))
+        batch_progress = tqdm(enumerate(dataloader), desc="Batch", leave=False, total=len(dataloader), ncols=int(self.terminal_width * 0.99))
         
         # Start feeding the model in batches
         for i, (images, crop_labels, state_labels) in batch_progress:
