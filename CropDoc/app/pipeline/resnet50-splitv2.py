@@ -18,6 +18,9 @@ from app.pipeline_helper.dataset import CropCCMTDataset
 
 from pprint import pprint
 
+warnings.filterwarnings("ignore",
+                        category=FutureWarning,
+                        module="torch.nn.parallel.parallel_apply")
 
 class MultiHeadResNetModel(torch.nn.Module):
     """A multi-head ResNet model for the CropCCMT dataset
