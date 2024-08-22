@@ -10,6 +10,7 @@ import torch
 import torchvision
 from loguru import logger
 from PIL import Image
+from tqdm import tqdm
 
 from app.pipeline_helper.transformer import TransformerManager
 from app.pipeline_helper.dataset import CropCCMTDataset
@@ -96,9 +97,6 @@ class Pipeline():
         self.dataset_root = self.pipeline_config['dataset_dir']
         self._validate_dataset_root(self.dataset_root)
         
-        
-        
-    
     def train_model(self):
         
         logger.debug("Starting model training")
@@ -149,7 +147,34 @@ class Pipeline():
         
         logger.debug('Starting Training Loop')
         
+        # Define the number of epochs to train for
         epochs = self.model_config['training']['epochs']
+        
+        # Define the best validation loss
+        self.best_val_loss = np.inf  # Set the best validation loss to infinity so that the first validation loss will always be better
+        
+        # Start training loop
+        for i in tqdm(epochs, desc="Epoch", leave=True):  # TODO: Add to the report the number of epochs we trained for
+            
+            # Train the model for one epoch
+            epoch_metrics = self._train_one_epoch(idx=i)
+            
+            # Update the learning rate
+            val_loss = epoch_metrics['val']['loss']['combined']
+            self.scheduler.step(val_loss)
+            
+            # Save the model if it has improved
+            if val_loss < self.best_val_loss:
+                self.best_val_loss = val_loss
+                self.save_model(output_dir=self.pipeline_config['output_dir'], epoch=i)
+            
+            
+            
+            
+            
+    
+    def _train_one_epoch(self, idx: int) -> dict:
+        pass
         
         
         
