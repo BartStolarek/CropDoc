@@ -98,8 +98,10 @@ class Pipeline():
         self._validate_dataset_root(self.dataset_root)
         
     def train_model(self):
-        
-        logger.debug("Starting model training")
+        """ Starts training the model and determining the best performing model. 
+        The model will be trained for the number of epochs specified in the config file
+        """
+        logger.debug("Starting training the model")
         
         # Load the transformer manager to handle loading transformers from config
         self.transformer_manager = TransformerManager(
@@ -112,6 +114,8 @@ class Pipeline():
             transformers=self.transformer_manager.transformers['train'],
             split='train'
         )
+        
+        logger.info(f"Loaded training dataset {self.train_data}")
         
         # If in development dataset needs to be reduced for faster training
         development_reduction = self.model_config['data']['reduce']
@@ -143,7 +147,7 @@ class Pipeline():
             **scheduler_config
         )
         
-        logger.info('Model Initialisation Complete')
+        logger.info('Pipeline Initialisation Complete')
         
         logger.debug('Starting Training Loop')
         
@@ -153,8 +157,18 @@ class Pipeline():
         # Define the best validation loss
         self.best_val_loss = np.inf  # Set the best validation loss to infinity so that the first validation loss will always be better
         
+        # Initialise epoch progress bar and training metrics list
+        epochs_progress = tqdm(epochs, desc="Epoch", leave=True)
+        self.progression_metrics = []  # Progression metrics will be a list of epoch number and the epochs metrics
+        
+        logger.info('\nTraining loop index:\n' +
+                    "T: Train, V: Validation\n" +
+                    "C: Crop, S: State\n" +
+                    "L: Loss, A: Accuracy\n"
+                    )
+    
         # Start training loop
-        for i in tqdm(epochs, desc="Epoch", leave=True):  # TODO: Add to the report the number of epochs we trained for
+        for i in epochs_progress:  # TODO: Add to the report the number of epochs we trained for
             
             # Train the model for one epoch
             epoch_metrics = self._train_one_epoch(idx=i)
@@ -169,16 +183,34 @@ class Pipeline():
                 self.save_model(output_dir=self.pipeline_config['output_dir'], epoch=i)
             
             
+            # Update the progress bar with the metrics
+            epochs_progress.set_postfix(
+                self._format_metrics(
+                    metrics=[
+                        epoch_metrics['train'],
+                        epoch_metrics['val']
+                    ],
+                    dataset_names=['train', 'val']
+                )
+            )
             
-            
-            
-    
-    def _train_one_epoch(self, idx: int) -> dict:
-        pass
+            # Append the metrics to the training metrics list
+            self.progression_metrics.append([i, epoch_metrics])
         
+        logger.info('Training loop complete')
+        logger.debug('Finding best performance metrics')
+         
+        # Using the save progression metrics obtain best performance metrics
+        for epoch, metrics in self.progression_metrics:
+            if self._is_better_metric(metrics):
+                self.performance_metrics = metrics
+                self.performance_metrics['epoch'] = epoch
+                
+        logger.info(f"Best performance metrics found:\n {self.performance_metrics}")
         
-        
-    
+        logger.info('Training pipeline complete')
+
+     
     def save_model(self):
         pass
     
@@ -221,6 +253,166 @@ class Pipeline():
         """
         pass
     
+    def _train_one_epoch(self, idx: int) -> dict:
+        """ Train the model for one epoch, splitting the training data into a training and validation set
+
+        Args:
+            idx (int): The index of the epoch
+
+        Returns:
+            dict: A dictionary containing the performance metrics for this epoch's training and validation
+        """
+        logger.debug(f"Training epoch {idx}")
+        
+        epoch_metrics = {}
+        
+        # Split the train dataset into a training and validation set
+        validation_split = self.model_config['training']['validation_split']
+        train_dataset, val_dataset = torch.utils.data.dataset.random_split(
+            self.train_data,
+            [
+                1 - validation_split,
+                validation_split
+            ]
+        )
+        
+        # Create the dataloaders for the training and validation sets that will load in to the model
+        train_dataloader = self._get_dataloader(dataset=train_dataset, shuffle=True)
+        val_dataloader = self._get_dataloader(dataset=val_dataset, shuffle=False)
+        
+        # Set the model to train mode
+        self.model.train()
+        
+        # Feed the model the training data, and set feeder to train
+        train_metrics = self._feed_model(train_dataloader, train=True)
+        epoch_metrics['train'] = train_metrics
+        
+        # Set the model to evaluation/validation mode
+        self.model.eval()
+        
+        # Turn off gradients for validation
+        with torch.no_grad():
+            
+            # Feed the model the validation data
+            val_metrics = self._feed_model(val_dataloader)
+            epoch_metrics['val'] = val_metrics
+        
+        # If using GPU clear the cache
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        return epoch_metrics
+        
+    def _feed_model(self, dataloader, train=False) -> dict:
+        """ Feed the model with the data from the dataloader to train/validate/test the model
+
+        Args:
+            dataloader (): The DataLoader to feed the model with
+            train (bool, optional): Whether the model is training. Defaults to False if validating or testing.
+
+        Returns:
+            dict: A dictionary containing the performance metrics for this epoch, including a list of batch metrics.
+        """
+        
+        # Initialise metrics for whole epic (total)
+        loss_crop_total = 0
+        loss_state_total = 0
+        loss_combined_total = 0
+        correct_crop_total = 0
+        correct_state_total = 0
+        count_total = 0
+        
+        metrics = {
+            'batches': [],
+        }
+        
+        # Create the batch progress bar
+        batch_progress = tqdm(enumerate(dataloader), desc="Batch", leave=False)
+        
+        # Start feeding the model in batches
+        for i, (images, crop_labels, state_labels) in batch_progress:
+            
+            # If training, set the optimiser to zero the gradients because we are about to calculate new gradients
+            if train:
+                self.optimiser.zero_grad()
+                
+            # Move data to GPU if available
+            images = images.to(self.model.device)
+            crop_labels = crop_labels.to(self.model.device)
+            state_labels = state_labels.to(self.model.device)
+            
+            # Forward pass
+            crop_predictions, state_predictions = self.model(images)
+            
+            # Calculate the loss
+            loss_crop_batch = self.crop_criterion(crop_predictions, crop_labels)
+            loss_state_batch = self.state_criterion(state_predictions, state_labels)
+            loss_combined_batch = loss_crop_batch + loss_state_batch
+
+            if train:
+                # Backward pass
+                loss_crop_batch.backward(retain_graph=True)
+                loss_state_batch.backward()
+                self.optimiser.step()
+                
+            # Calculate correct predictions
+            _, predicted_crop = torch.max(crop_predictions, 1)
+            _, predicted_state = torch.max(state_predictions, 1)
+            correct_crop_batch = (predicted_crop == crop_labels).sum().item()
+            correct_state_batch = (predicted_state == state_labels).sum().item()
+            count_batch = crop_labels.size(0)
+            
+            # Capture batch metrics
+            batch_metrics = {
+                'loss': {
+                    'crop': loss_crop_batch.item(),
+                    'state': loss_state_batch.item(),
+                    'combined': loss_combined_batch.item(),
+                },
+                'accuracy': {
+                    'crop': correct_crop_batch / count_batch,
+                    'state': correct_state_batch / count_batch,
+                    'average': ((correct_crop_batch / count_batch) + (correct_state_batch / count_batch)) / 2
+                },
+                'correct': {
+                    'crop': correct_crop_batch,
+                    'state': correct_state_batch,
+                },
+                'count': count_batch
+            }
+            metrics['batches'].append([i, batch_metrics])
+            
+            # Update total epoch metrics
+            loss_crop_total += loss_crop_batch.item()
+            loss_state_total += loss_state_batch.item()
+            loss_combined_total += loss_combined_batch.item()
+            correct_crop_batch += correct_crop_batch
+            correct_state_batch += correct_state_batch
+            count_total += count_batch
+            
+            batch_progress.set_postfix(self._format_metrics(batch_metrics))
+            
+        metrics['loss'] = {
+            'crop': loss_crop_total / len(dataloader),
+            'state': loss_state_total / len(dataloader),
+            'combined': loss_combined_total / len(dataloader)
+        }
+        
+        metrics['accuracy'] = {
+            'crop': correct_crop_total / count_total,
+            'state': correct_state_total / count_total,
+            'average': ((correct_crop_total / count_total) + (correct_state_total / count_total)) / 2
+        }
+        
+        metrics['correct'] = {
+            'crop': correct_crop_total,
+            'state': correct_state_total
+        }
+        
+        metrics['count'] = count_total
+        
+        return metrics
+                
     def _validate_config(self, config: dict):
         """ Validate the configuration dictionary to ensure that it contains all the necessary keys and values
         
@@ -242,6 +434,133 @@ class Pipeline():
             ValueError: If the dataset root directory does not exist or the structure is incorrect
         """
         pass
+    
+    def _is_better_metric(self, metric) -> bool:
+        """ Determine if the current epoch is better than the best epoch based on the average change percentage of the loss and accuracy metrics
+
+        Args:
+            metric (dict): The progression metrics for the current epoch
+
+        Returns:
+            bool: True if the current epoch is better than the best epoch, False otherwise
+        """
+        logger.debug("Getting the best performance metrics from progression metrics")
+        
+        # Calculate the change percentage for each loss metric from the best metric to the currently observed metric set
+        val_loss_crop_change = metric['loss']['crop'] / self.best_metric['val']['loss']['crop'] - 1
+        val_loss_state_change = metric['loss']['state'] / self.best_metric['val']['loss']['state'] - 1
+        
+        # Get the average loss change percentage, convert to absolute value for better comparison
+        average_loss_change = abs((
+            val_loss_crop_change +
+            val_loss_state_change
+        ) / 4)
+        
+        # Calculate the change percentage for each loss metric from the best metric to the currently observed metric set
+        val_accuracy_crop_change = metric['accuracy']['crop'] / self.best_metric['val']['accuracy']['crop'] - 1
+        val_accuracy_state_change = metric['accuracy']['state'] / self.best_metric['val']['accuracy']['state'] - 1
+        
+        # Get the average accuracy change percentage, convert to absolute value for better comparison
+        average_accuracy_change = abs((
+            val_accuracy_crop_change +
+            val_accuracy_state_change
+        ) / 4)
+        
+        # Get the average of the average loss and accuracy change
+        average = (average_loss_change + average_accuracy_change) / 2
+    
+        # If the average is greater than 0, then the current epoch is better than the best epoch
+        if average > 0:
+            return True
+        
+        else:
+            return False
+            
+    def _format_metrics(self, metrics, dataset_names: list = None) -> dict:
+        """ Format the metrics into a dictionary of formatted strings
+
+        Args:
+            metrics (list or dict): A list of metric dictionaries or a single metric dictionary
+            dataset_names (list, optional): A list of dataset names to combine the metrics with. Defaults to None if a single metric dictionary is provided.
+
+        Raises:
+            ValueError: Raised when the metrics and dataset_names lists are not the same length
+            ValueError: Raised when the metrics dictionary does not have the keys 'loss' and 'accuracy'
+
+        Returns:
+            dict: A dictionary of formatted metric strings
+        """
+
+        if isinstance(metrics, list) and isinstance(dataset_names, list) and len(metrics) == len(dataset_names):
+            formatted_metrics = {}
+            zipped_metrics = zip(metrics, dataset_names)
+            for i, (metric, dataset_name) in enumerate(zipped_metrics):
+                letter = dataset_name[i][0].upper()
+                
+                try:
+                    formatted_metrics[f'{letter}LC'] = self._format_loss(metric['loss']['crop'])
+                    formatted_metrics[f'{letter}LS'] = self._format_loss(metric['loss']['state'])
+                    formatted_metrics[f'{letter}LA'] = self._format_accuracy(metric['accuracy']['crop'])
+                    formatted_metrics[f'{letter}SA'] = self._format_accuracy(metric['accuracy']['state'])
+                except KeyError as e:
+                    logger.error(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}")
+                    raise ValueError(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}")
+            return formatted_metrics
+        
+        elif isinstance(metrics, dict):
+            try:
+                return {
+                    'CL': self._format_loss(metrics['loss']['crop']),
+                    'SL': self._format_loss(metrics['loss']['state']),
+                    'CA': self._format_accuracy(metrics['accuracy']['crop']),
+                    'SA': self._format_accuracy(metrics['accuracy']['state'])
+                }
+            except KeyError as e:
+                logger.error(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}")
+                raise ValueError(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}")
+        else:
+            logger.error("Metrics and combined lists should be the same length, or metrics should be a dictionary")
+            raise ValueError("Metrics and combined lists should be the same length, or metrics should be a dictionary")
+            
+    def _format_accuracy(self, metric: float) -> str:
+        """ Format the accuracy metric into a percentage string
+
+        Args:
+            metric (float): The accuracy metric to format
+
+        Returns:
+            str: The formatted accuracy metric as a percentage string
+        """
+        return f"{metric * 100:.1f}%"
+    
+    def _format_loss(self, metric: float) -> str:
+        """ Format the loss metric to 3 decimal places
+
+        Args:
+            metric (float): The loss metric to format
+
+        Returns:
+            str: The formatted loss metric to 3 decimal places
+        """
+        return f"{metric:.3f}"
+    
+    def _get_dataloader(self, dataset, shuffle=True):
+        """ Get a DataLoader for the dataset
+
+        Args:
+            dataset (torch.utils.data.Dataset): The dataset to create the DataLoader for
+            shuffle (bool, optional): Whether to shuffle the dataset. Defaults to True.
+
+        Returns:
+            torch.utils.data.DataLoader: The DataLoader for the dataset 
+        """
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            batch_size=self.model_config['training']['batch_size'],
+            shuffle=shuffle,
+            num_workers=self.model_config['training']['num_workers'],
+            pin_memory=True)
+        return dataloader
 
 
 def train(config):
