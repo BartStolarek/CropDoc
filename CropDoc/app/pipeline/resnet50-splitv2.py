@@ -112,8 +112,14 @@ class Pipeline():
         logger.debug("Starting training the model")
         
         # Check if pre-existing pipeline exists
-        if os.path.exists(os.path.join(self.pipeline_output_dir, 'final')):
+        potential_path = os.path.join(self.pipeline_output_dir, 'final', f'{self.pipeline_name}-{self.pipeline_version}.pth')
+        if os.path.exists(potential_path):
+            logger.info(f"Found a pre-existing pipeline for this config at {self.pipeline_output_dir}/final/")
             pipeline_exists = True
+            self.pipeline_path = potential_path
+        else:
+            pipeline_exists = False
+            logger.info("No pre-existing pipeline found, you can move a checkpoint file to the final directory, make sure to remove the 'epoch-#' post-fix")
         
         # Load the transformer manager to handle loading transformers from config
         self.transformer_manager = TransformerManager(
@@ -127,13 +133,20 @@ class Pipeline():
             'split': 'train'
         }
         if pipeline_exists:
-            dataset_kwargs['crop_index_map'] = self.crop_index_map
-            dataset_kwargs['state_index_map'] = self.state_index_map
+            # Load the crop and state index map from the saved file
+            crop_index_map = torch.load(self.pipeline_path, weights_only=True)['crop_index_map']
+            state_index_map = torch.load(self.pipeline_path, weights_only=True)['state_index_map']
+            
+            # Give it to the dataset class to keep mapping the same
+            dataset_kwargs['crop_index_map'] = crop_index_map
+            dataset_kwargs['state_index_map'] = state_index_map
         
+        # Initialise the training dataset
         self.train_data = CropCCMTDataset(
             **dataset_kwargs
         )
         
+        # Resave the crop and state index maps
         self.crop_index_map = self.train_data.crop_index_map
         self.state_index_map = self.train_data.state_index_map
         
@@ -149,6 +162,8 @@ class Pipeline():
             num_classes_crop=self.train_data.get_unique_crop_count(),  # TODO: Add to report the count of unique classes for crop and state
             num_classes_state=self.train_data.get_unique_state_count()
         )
+        if pipeline_exists:
+            self.model.load_state_dict(torch.load(self.pipeline_path, weights_only=True)['model_state_dict'])
         
         # Define the loss functions for both heads
         self.crop_criterion = torch.nn.CrossEntropyLoss()  # TODO: Add to report that we are using CrossEntropyLoss for the loss functions for both heads
@@ -159,6 +174,8 @@ class Pipeline():
             self.model.parameters(),
             lr=self.pipeline_config['training']['learning_rate']
         )
+        if pipeline_exists:
+            self.optimiser.load_state_dict(torch.load(self.pipeline_path, weights_only=True)['optimiser_state_dict'])
         
         # Define the learning rate scheduler, which will reduce the learning rate when the model stops improving so that it can find a better minima
         active_scheduler = self.pipeline_config['training']['lr_scheduler']['active']  # Obtain the active scheduler set in the config
@@ -168,11 +185,10 @@ class Pipeline():
             self.optimiser,
             **scheduler_config
         )
+        if pipeline_exists:
+            self.scheduler.load_state_dict(torch.load(self.pipeline_path, weights_only=True)['scheduler_state_dict'])
         
         logger.info('Pipeline Initialisation Complete')
-        
-        # Define the number of epochs to train for
-        epochs = self.pipeline_config['training']['epochs']
         
         logger.info('\nTraining loop index:\n' +
                     "T: Train, V: Validation\n" +
@@ -183,18 +199,37 @@ class Pipeline():
         # Define the best validation loss
         checkpoint_interval = self.pipeline_config['training']['checkpoint_interval']  # The minimum epochs to go buy before checking to save another checkpoint
 
-        # Set epoch range
-        start = 1
-        end = epochs + 1
+        # Define the number of epochs to train for and set the epoch range
+        self.epochs = self.pipeline_config['training']['epochs']
+        if pipeline_exists:
+            start = torch.load(self.pipeline_path, weights_only=True)['epochs'] + 1
+            end = start + self.epochs
+            self.epochs += torch.load(self.pipeline_path, weights_only=True)['epochs']
+            logger.info(f'Starting training loop for epochs {start} to {end - 1} ({end - 1 - start}). Total pre-trained epochs: {start - 1})')
+            end -= 1
+        else:
+            start = 1
+            end = self.epochs + 1
+            logger.info(f'Starting training loop for epochs {start} to {end - 1}')
         
-        logger.info(f'Starting Training Loop for {start} to {end} epochs ({end-start})')
+        
         
         # Initialise epoch progress bar and training metrics list
         epochs_progress = tqdm(range(start, end), desc="Epoch", leave=True)
-        self.progression_metrics = []  # Progression metrics will be a list of epoch number and the epochs metrics
+        
+        if pipeline_exists:
+            self.progression_metrics = torch.load(self.pipeline_path, weights_only=True)['progression_metrics']
+            self.performance_metrics = torch.load(self.pipeline_path, weights_only=True)['performance_metrics']
+            
+        else:
+            self.progression_metrics = []  # Progression metrics will be a list of epoch number and the epochs metrics
         
         # Start training loop
-        first_epoch = True
+        if pipeline_exists:
+            last_checkpoint_epoch = start - 1
+            first_epoch = False
+        else:
+            first_epoch = True
         for i in epochs_progress:  # TODO: Add to the report the number of epochs we trained for
             
             # Train the model for one epoch
@@ -233,6 +268,8 @@ class Pipeline():
             
             # Append the metrics to the training metrics list
             self.progression_metrics.append([i, epoch_metrics])
+            
+        
         
             first_epoch = False
         
@@ -245,8 +282,11 @@ class Pipeline():
             self.performance_metrics['val'].pop('batches')
         if 'test' in self.performance_metrics.keys() and 'batches' in self.performance_metrics['test'].keys():
             self.performance_metrics['test'].pop('batches') 
-        #logger.info(f"Best performance metrics :\n {self.performance_metrics}")
-        pprint(self.performance_metrics)
+            
+        
+            
+        logger.info(f"Best performance metrics :\n {self.performance_metrics}")
+        
         logger.info('Training pipeline complete')
 
     def save_pipeline(self, epoch: int = None):
@@ -265,17 +305,19 @@ class Pipeline():
             'progression_metrics': self.progression_metrics,
             'performance_metrics': self.performance_metrics,
             'crop_index_map': self.crop_index_map,
-            'state_index_map': self.state_index_map
+            'state_index_map': self.state_index_map,
         }
         
         # Save the pipeline as a checkpoint or the final pipeline depending if a epoch was provided
         if epoch is not None:
             directory = os.path.join(self.pipeline_output_dir, 'checkpoints')
             file_name = f'{self.pipeline_name}-{self.pipeline_version}-epoch-{epoch}.pth'
-            save_dict['epoch'] = epoch
+            save_dict['epochs'] = epoch
         else:
             directory = os.path.join(self.pipeline_output_dir, 'final')
             file_name = f'{self.pipeline_name}-{self.pipeline_version}.pth'
+            save_dict['epochs'] = self.epochs
+            
         
         # Ensure the directory exists
         os.makedirs(directory, exist_ok=True)
@@ -316,6 +358,9 @@ class Pipeline():
         - Evaluation Graphs
         """
         pass
+    
+    def _load_model(self):
+        torch
     
     def _train_one_epoch(self) -> dict:
         """ Train the model for one epoch, splitting the training data into a training and validation set
@@ -390,7 +435,7 @@ class Pipeline():
         }
         
         # Create the batch progress bar
-        batch_progress = tqdm(enumerate(dataloader), desc="Batch", leave=False)
+        batch_progress = tqdm(enumerate(dataloader), desc="Batch", leave=False, total=len(dataloader))
         
         # Start feeding the model in batches
         for i, (images, crop_labels, state_labels) in batch_progress:
@@ -449,8 +494,8 @@ class Pipeline():
             loss_crop_total += loss_crop_batch.item()
             loss_state_total += loss_state_batch.item()
             loss_combined_total += loss_combined_batch.item()
-            correct_crop_batch += correct_crop_batch
-            correct_state_batch += correct_state_batch
+            correct_crop_total += correct_crop_batch
+            correct_state_total += correct_state_batch
             count_total += count_batch
             
             batch_progress.set_postfix(self._format_metrics(batch_metrics))

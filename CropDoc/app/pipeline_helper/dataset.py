@@ -37,8 +37,8 @@ class CropCCMTDataset(torch.utils.data.Dataset):
 
         self.crops = self._get_unique_crops(crop_index_map)
         self.states = self._get_unique_states(state_index_map)
-        self.crop_index_map = {crop: i for i, crop in enumerate(self.crops)}
-        self.state_index_map = {state: i for i, state in enumerate(self.states)}
+        self.crop_index_map = {i: crop for i, crop in enumerate(self.crops)}
+        self.state_index_map = {i: state for i, state in enumerate(self.states)}
 
     def get_unique_crop_count(self):
         return len(self.crops)
