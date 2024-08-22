@@ -89,14 +89,20 @@ class Pipeline():
         # Check if the config is valid
         self._validate_config(config)
         
-        # Split out the config for easier interpretation
-        self.model_config = config['model']
-        self.pipeline_config = config['pipeline']
+        # Split out the config for easier interpretation, and get some pipeline metadata
+        self.pipeline_config = config
+        self.pipeline_name = self.pipeline_config['name']
+        self.pipeline_version = self.pipeline_config['version']
+        self.pipeline_output_dir = os.path.join(
+            self.pipeline_config['output_dir'],
+            f"{self.pipeline_name}-{self.pipeline_version}"
+        )
+        os.makedirs(self.pipeline_output_dir, exist_ok=True)
         
         # Get the dataset root directory
         self.dataset_root = self.pipeline_config['dataset_dir']
         self._validate_dataset_root(self.dataset_root)
-        
+
     def train_model(self):
         """ Starts training the model and determining the best performing model. 
         The model will be trained for the number of epochs specified in the config file
@@ -105,7 +111,7 @@ class Pipeline():
         
         # Load the transformer manager to handle loading transformers from config
         self.transformer_manager = TransformerManager(
-            self.model_config['data']['transformers']  # TODO: Add to report that we are using transformers to augment the training data
+            self.pipeline_config['data']['transformers']  # TODO: Add to report that we are using transformers to augment the training data
         )
         
         # Load the train datasets
@@ -115,10 +121,13 @@ class Pipeline():
             split='train'
         )
         
+        self.crop_index_map = self.train_data.crop_index_map
+        self.state_index_map = self.train_data.state_index_map
+        
         logger.info(f"Loaded training dataset {self.train_data}")
         
         # If in development dataset needs to be reduced for faster training
-        development_reduction = self.model_config['data']['reduce']
+        development_reduction = self.pipeline_config['data']['reduce']
         if development_reduction < 1:
             self.train_data.equal_reduce(development_reduction)
             
@@ -135,39 +144,49 @@ class Pipeline():
         # Define the optimiser
         self.optimiser = torch.optim.Adam(  # TODO: Add to the report that we are using Adam optimiser, and the learning rate it starts at
             self.model.parameters(),
-            lr=self.model_config['training']['learning_rate']
+            lr=self.pipeline_config['training']['learning_rate']
         )
         
         # Define the learning rate scheduler, which will reduce the learning rate when the model stops improving so that it can find a better minima
-        active_scheduler = self.model_config['training']['lr_scheduler']['active']  # Obtain the active scheduler set in the config
-        scheduler_config = self.model_config['training']['lr_scheduler'][active_scheduler]  # Obtain the configuration for the active scheduler
+        active_scheduler = self.pipeline_config['training']['lr_scheduler']['active']  # Obtain the active scheduler set in the config
+        scheduler_config = self.pipeline_config['training']['lr_scheduler'][active_scheduler]  # Obtain the configuration for the active scheduler
         scheduler_object = getattr(torch.optim.lr_scheduler, active_scheduler)  # TODO: Add to the report the scheduler we are using (from config file)
         self.scheduler = scheduler_object(
-            self.optimizer,
+            self.optimiser,
             **scheduler_config
         )
         
         logger.info('Pipeline Initialisation Complete')
         
-        logger.debug('Starting Training Loop')
+        
         
         # Define the number of epochs to train for
-        epochs = self.model_config['training']['epochs']
+        epochs = self.pipeline_config['training']['epochs']
         
-        # Define the best validation loss
-        self.best_val_loss = np.inf  # Set the best validation loss to infinity so that the first validation loss will always be better
         
-        # Initialise epoch progress bar and training metrics list
-        epochs_progress = tqdm(epochs, desc="Epoch", leave=True)
-        self.progression_metrics = []  # Progression metrics will be a list of epoch number and the epochs metrics
         
         logger.info('\nTraining loop index:\n' +
                     "T: Train, V: Validation\n" +
                     "C: Crop, S: State\n" +
                     "L: Loss, A: Accuracy\n"
                     )
-    
+        
+        # Define the best validation loss
+        best_val_loss = np.inf  # Set the best validation loss to infinity so that the first validation loss will always be better
+        checkpoint_interval = 10  # The minimum epochs to go buy before checking to save another checkpoint
+
+        # Set epoch range
+        start = 1
+        end = epochs + 1
+        
+        logger.info(f'Starting Training Loop for {start} to {end} epochs ({end-start})')
+        
+        # Initialise epoch progress bar and training metrics list
+        epochs_progress = tqdm(range(start, end), desc="Epoch", leave=True)
+        self.progression_metrics = []  # Progression metrics will be a list of epoch number and the epochs metrics
+        
         # Start training loop
+        first_epoch = True
         for i in epochs_progress:  # TODO: Add to the report the number of epochs we trained for
             
             # Train the model for one epoch
@@ -177,11 +196,21 @@ class Pipeline():
             val_loss = epoch_metrics['val']['loss']['combined']
             self.scheduler.step(val_loss)
             
-            # Save the model if it has improved
-            if val_loss < self.best_val_loss:
-                self.best_val_loss = val_loss
-                self.save_model(output_dir=self.pipeline_config['output_dir'], epoch=i)
-            
+            # Check if its first epoch, if so save a checkpoing
+            if first_epoch:
+                last_checkpoint_epoch = i
+                self.performance_metrics = epoch_metrics
+                self.performance_metrics['epoch'] = i
+                self.save_pipeline(epoch=i)
+                
+            # Check if the current epoch is far enough from previous checkpoint
+            elif (i - last_checkpoint_epoch) >= checkpoint_interval:
+                # Check if current epoch has better validation loss than current best
+                if self._is_better_metric(epoch_metrics):
+                    self.performance_metrics = epoch_metrics
+                    self.performance_metrics['epoch'] = i
+                    self.save_pipeline(epoch=i)
+                    last_checkpoint_epoch = i
             
             # Update the progress bar with the metrics
             epochs_progress.set_postfix(
@@ -197,6 +226,8 @@ class Pipeline():
             # Append the metrics to the training metrics list
             self.progression_metrics.append([i, epoch_metrics])
         
+            first_epoch = False
+        
         logger.info('Training loop complete')
         logger.debug('Finding best performance metrics')
          
@@ -210,9 +241,43 @@ class Pipeline():
         
         logger.info('Training pipeline complete')
 
-     
-    def save_model(self):
-        pass
+    def save_pipeline(self, epoch: int = None):
+        """ Save the pipeline, including the model, optimiser, scheduler, progression metrics, and performance metrics
+        as a checkpoint or the final pipeline
+
+        Args:
+            epoch (int, optional): The epoch number to save the checkpoint. Defaults to None if saving the final pipeline.
+        """
+        logger.debug("Saving the pipeline")
+        
+        # Create the save dictionary
+        save_dict = {
+            'model_state_dict': self.model.state_dict(),
+            'optimiser_state_dict': self.optimiser.state_dict(),
+            'scheduler_state_dict': self.scheduler.state_dict(),
+            'progression_metrics': self.progression_metrics,
+            'performance_metrics': self.performance_metrics,
+            'crop_index_map': self.crop_index_map,
+            'state_index_map': self.state_index_map
+        }
+        
+        # Save the pipeline as a checkpoint or the final pipeline depending if a epoch was provided
+        if epoch is not None:
+            directory = os.path.join(self.pipeline_output_dir, 'checkpoints')
+            file_name = f'checkpoint-epoch-{epoch}.pth'
+            save_dict['epoch'] = epoch
+        else:
+            directory = os.path.join(self.pipeline_output_dir, 'pipeline')
+            file_name = 'pipeline.pth'
+        
+        # Ensure the directory exists
+        os.makedirs(directory, exist_ok=True)
+        
+        # Save the pipeline
+        torch.save({save_dict, directory, file_name})
+        
+        logger.info(f"Pipeline saved to {os.path.join(directory, file_name)}")
+
     
     def save_index_map(self):
         """ Save the index map, which is a dictionary of the class names and their corresponding indices
@@ -267,7 +332,7 @@ class Pipeline():
         epoch_metrics = {}
         
         # Split the train dataset into a training and validation set
-        validation_split = self.model_config['training']['validation_split']
+        validation_split = self.pipeline_config['training']['validation_split']
         train_dataset, val_dataset = torch.utils.data.dataset.random_split(
             self.train_data,
             [
@@ -556,9 +621,9 @@ class Pipeline():
         """
         dataloader = torch.utils.data.DataLoader(
             dataset,
-            batch_size=self.model_config['training']['batch_size'],
+            batch_size=self.pipeline_config['training']['batch_size'],
             shuffle=shuffle,
-            num_workers=self.model_config['training']['num_workers'],
+            num_workers=self.pipeline_config['training']['num_workers'],
             pin_memory=True)
         return dataloader
 

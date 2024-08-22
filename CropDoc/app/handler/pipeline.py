@@ -25,7 +25,7 @@ def handle_pipeline(file: str,
                                               file_name=model_config)
 
         # Run pipeline command
-        result = method_func(dataset=dataset, config=model_config, **kwargs)
+        result = method_func(config=model_config, **kwargs)
 
     except Exception as e:
         logger.error(

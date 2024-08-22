@@ -9,7 +9,7 @@ import re
 
 class CropCCMTDataset(torch.utils.data.Dataset):
 
-    def __init__(self, dataset_path, transformers=None, split='train'):
+    def __init__(self, dataset_path, transformers=None, split='train', crop_index_map: dict = None, state_index_map: dict = None):
         if not isinstance(transformers, torchvision.transforms.Compose):
             logger.error(
                 f"Invalid transforms: {transformers}. Must be of type {torchvision.transforms.Compose}"
@@ -35,8 +35,10 @@ class CropCCMTDataset(torch.utils.data.Dataset):
 
         self.walk_through_root_append_images_and_labels()
 
-        self.crops = self._get_unique_crops()
-        self.states = self._get_unique_states()
+        self.crops = self._get_unique_crops(crop_index_map)
+        self.states = self._get_unique_states(state_index_map)
+        self.crop_index_map = {crop: i for i, crop in enumerate(self.crops)}
+        self.state_index_map = {state: i for i, state in enumerate(self.states)}
 
     def get_unique_crop_count(self):
         return len(self.crops)
@@ -135,21 +137,33 @@ class CropCCMTDataset(torch.utils.data.Dataset):
         logger.info(f"Crop Data Map: {self.data_map['crop']}")
         logger.info(f"State Data Map: {self.data_map['state']}")
 
-    def _get_unique_crops(self):
-        crops = []
-        for crop, _ in self.labels:
-            if crop not in crops:
-                crops.append(crop)
-        crops = sorted(list(set(crops)))
-        return crops
+    def _get_unique_crops(self, index_map=None):
+        if not index_map:
+            crops = []
+            for crop, _ in self.labels:
+                if crop not in crops:
+                    crops.append(crop)
+            crops = sorted(list(set(crops)))
+            return crops
+        else:
+            states = []
+            for i in range(len(index_map)):
+                states.append(index_map[i])
+            return states
 
-    def _get_unique_states(self):
-        states = []
-        for _, state in self.labels:
-            if state not in states:
-                states.append(state)
-        states = sorted(list(set(states)))
-        return states
+    def _get_unique_states(self, index_map=None):
+        if not index_map:
+            states = []
+            for _, state in self.labels:
+                if state not in states:
+                    states.append(state)
+            states = sorted(list(set(states)))
+            return states
+        else:
+            states = []
+            for i in range(len(index_map)):
+                states.append(index_map[i])
+            return states
 
     def __getitem__(self, idx):
         img_path = self.images[idx]

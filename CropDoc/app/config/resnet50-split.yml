@@ -1,73 +1,71 @@
-pipeline:
-  python_file:
-  dataset_dir: data/datasets/CCMT Dataset-Augmented
-  output_dir: data/output
-model:
-  name: ResNet50
-  type: Classification
-  version: 1.2
-  architecture:
-    - type: ResNet
-  training:
-    epochs: 200
-    val_split: 0.1
-    batch_size: 512
-    num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
-    learning_rate: 0.005
-    lr_scheduler:
-      active: ReduceLROnPlateau
-      StepLR:
-        step_size: 30
-        gamma: 0.3
-      ReduceLROnPlateau:
-        mode: min
-        factor: 0.3  # Factor by which the learning rate will be reduced. new_lr = lr * factor
-        patience: 10  # Number of epochs with no improvement after which learning rate will be reduced
-        threshold: 0.001  # Threshold for measuring the new optimum, to only focus on significant changes
-    loss_function: # List of loss functions can be found here: https://pytorch.org/docs/stable/nn.html#loss-functions  
-      type: CrossEntropyLoss
-  data:
-    reduce: 1 # Percentage of data from dataset to be used for training (0-1), can be lowered to speed up training to test development faster
-    transformers: # List of data transformers can be found here: https://pytorch.org/vision/0.9/transforms.html
-      train:
-        - type: RandomResizedCrop
-          size: 224
-        - type: RandomHorizontalFlip
-        - type: ColorJitter
-          brightness: 0.2
-          contrast: 0.2
-          saturation: 0.2
-          hue: 0.1
-        - type: RandomRotation
-          degrees: 20
-        - type: RandomAffine
-          degrees: 0
-          translate: [0.1, 0.1]
-        - type: ToTensor
-        - type: Normalize
-          mean: [0.485, 0.456, 0.406]
-          std: [0.229, 0.224, 0.225]
-      val:
-        - type: Resize
-          size: 256
-        - type: CenterCrop
-          size: 224
-        - type: ToTensor
-        - type: Normalize
-          mean: [0.485, 0.456, 0.406]
-          std: [0.229, 0.224, 0.225]
-      test:
-        - type: Resize
-          size: 256
-        - type: CenterCrop
-          size: 224
-        - type: ToTensor
-        - type: Normalize
-          mean: [0.485, 0.456, 0.406]
-          std: [0.229, 0.224, 0.225]   
-  evaluation:
-    metrics:
-      - accuracy
-      - precision
-      - recall
-    batch_size: 64
+name: ResNet50
+type: Classification
+version: 1.2
+python_file:
+dataset_dir: data/datasets/CCMT Dataset-Augmented
+output_dir: data/output
+architecture:
+  - type: ResNet
+training:
+  epochs: 200
+  validation_split: 0.1
+  batch_size: 16  # Was 512
+  num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
+  learning_rate: 0.005
+  lr_scheduler:
+    active: ReduceLROnPlateau
+    StepLR:
+      step_size: 30
+      gamma: 0.3
+    ReduceLROnPlateau:
+      mode: min
+      factor: 0.3  # Factor by which the learning rate will be reduced. new_lr = lr * factor
+      patience: 10  # Number of epochs with no improvement after which learning rate will be reduced
+      threshold: 0.001  # Threshold for measuring the new optimum, to only focus on significant changes
+  loss_function: # List of loss functions can be found here: https://pytorch.org/docs/stable/nn.html#loss-functions  
+    type: CrossEntropyLoss
+data:
+  reduce: 0.01 # Percentage of data from dataset to be used for training (0-1), can be lowered to speed up training to test development faster
+  transformers: # List of data transformers can be found here: https://pytorch.org/vision/0.9/transforms.html
+    train:
+      - type: RandomResizedCrop
+        size: 224
+      - type: RandomHorizontalFlip
+      - type: ColorJitter
+        brightness: 0.2
+        contrast: 0.2
+        saturation: 0.2
+        hue: 0.1
+      - type: RandomRotation
+        degrees: 20
+      - type: RandomAffine
+        degrees: 0
+        translate: [0.1, 0.1]
+      - type: ToTensor
+      - type: Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    val:
+      - type: Resize
+        size: 256
+      - type: CenterCrop
+        size: 224
+      - type: ToTensor
+      - type: Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    test:
+      - type: Resize
+        size: 256
+      - type: CenterCrop
+        size: 224
+      - type: ToTensor
+      - type: Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]   
+evaluation:
+  metrics:
+    - accuracy
+    - precision
+    - recall
+  batch_size: 64
