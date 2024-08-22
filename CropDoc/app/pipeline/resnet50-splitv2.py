@@ -193,7 +193,7 @@ class Pipeline():
         logger.info('\nTraining loop index:\n' +
                     "T: Train, V: Validation\n" +
                     "C: Crop, S: State\n" +
-                    "L: Loss, A: Accuracy\n"
+                    "L: Loss, A: Accuracy"
                     )
         
         # Define the best validation loss
@@ -202,18 +202,16 @@ class Pipeline():
         # Define the number of epochs to train for and set the epoch range
         self.epochs = self.pipeline_config['training']['epochs']
         if pipeline_exists:
-            start = torch.load(self.pipeline_path, weights_only=True)['epochs'] + 1
+            checkpoint = torch.load(self.pipeline_path, weights_only=True)
+            start = checkpoint['epochs'] + 1
             end = start + self.epochs
-            self.epochs += torch.load(self.pipeline_path, weights_only=True)['epochs']
-            logger.info(f'Starting training loop for epochs {start} to {end - 1} ({end - 1 - start}). Total pre-trained epochs: {start - 1})')
-            end -= 1
+            self.total_pretrained_epochs = checkpoint['epochs']
+            logger.info(f'Starting training loop for epochs {start} to {end - 1} ({end - start}). Total pre-trained epochs: {self.total_pretrained_epochs}')
         else:
             start = 1
             end = self.epochs + 1
             logger.info(f'Starting training loop for epochs {start} to {end - 1}')
-        
-        
-        
+            
         # Initialise epoch progress bar and training metrics list
         epochs_progress = tqdm(range(start, end), desc="Epoch", leave=True)
         
@@ -269,8 +267,6 @@ class Pipeline():
             # Append the metrics to the training metrics list
             self.progression_metrics.append([i, epoch_metrics])
             
-        
-        
             first_epoch = False
         
         logger.info('Training loop complete')
@@ -283,7 +279,10 @@ class Pipeline():
         if 'test' in self.performance_metrics.keys() and 'batches' in self.performance_metrics['test'].keys():
             self.performance_metrics['test'].pop('batches') 
             
-        
+        if pipeline_exists:
+            self.total_pretrained_epochs += self.epochs
+        else:
+            self.total_pretrained_epochs = self.epochs
             
         logger.info(f"Best performance metrics :\n {self.performance_metrics}")
         
@@ -309,14 +308,15 @@ class Pipeline():
         }
         
         # Save the pipeline as a checkpoint or the final pipeline depending if a epoch was provided
-        if epoch is not None:
+        if epoch:
             directory = os.path.join(self.pipeline_output_dir, 'checkpoints')
             file_name = f'{self.pipeline_name}-{self.pipeline_version}-epoch-{epoch}.pth'
             save_dict['epochs'] = epoch
         else:
             directory = os.path.join(self.pipeline_output_dir, 'final')
             file_name = f'{self.pipeline_name}-{self.pipeline_version}.pth'
-            save_dict['epochs'] = self.epochs
+            save_dict['epochs'] = self.total_pretrained_epochs
+            
             
         
         # Ensure the directory exists
