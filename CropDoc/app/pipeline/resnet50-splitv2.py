@@ -15,6 +15,7 @@ import shutil
 
 from app.pipeline_helper.transformer import TransformerManager
 from app.pipeline_helper.dataset import CropCCMTDataset
+from app.pipeline_helper.dataloader import TransformDataLoader
 
 from pprint import pprint
 
@@ -108,7 +109,37 @@ class Pipeline():
         # Get the dataset root directory
         self.dataset_root = self.pipeline_config['dataset_dir']
         self._validate_dataset_root(self.dataset_root)
-
+        
+    def predict_model(self, image_path: str):
+        
+        # Load the saved trained pipeline
+        pipeline_path = os.path.join(self.pipeline_output_dir, 'final', f'{self.pipeline_name}-{self.pipeline_version}.pth') # Get the path of the final pipeline
+        pipeline = torch.load(pipeline_path, weights_only=True) # Load the pipeline
+        
+        # Initialise a model
+        self.model = MultiHeadResNetModel( # Create a new model
+            num_classes_crop=len(pipeline['crop_index_map']),
+            num_classes_state=len(pipeline['state_index_map'])
+        )
+        
+        # Load the trained model weights from the pipeline into the new model. 
+        self.model.load_state_dict(torch.load(pipeline_path, weights_only=True)['model_state_dict'])
+        
+        # Set the model to eval mode
+        self.model.eval()
+        
+        # Load transformers
+        self.transformer_manager = TransformerManager(
+            self.pipeline_config['data']['transformers']
+        )
+        
+        # Load the image and apply transformers
+        image = self._load_image(image_path, split='test')
+        
+        
+        
+    
+        
     def train_model(self):
         """ Starts training the model and determining the best performing model. 
         The model will be trained for the number of epochs specified in the config file
@@ -130,10 +161,9 @@ class Pipeline():
             self.pipeline_config['data']['transformers']  # TODO: Add to report that we are using transformers to augment the training data
         )
         
-        # Load the train datasets
+        # Load the train dataset
         dataset_kwargs = {
             'dataset_path': self.dataset_root,
-            'transformers': self.transformer_manager.transformers['train'],
             'split': 'train'
         }
         if pipeline_exists:
@@ -334,7 +364,6 @@ class Pipeline():
         if not epoch:
             logger.info(f"Saved the final pipeline to {file_path}")
 
-    
     def save_confusion_matrix(self):
         """ Save the following metrics:
         - Accuracy
@@ -364,9 +393,6 @@ class Pipeline():
         """
         pass
     
-    def _load_model(self):
-        torch
-    
     def _train_one_epoch(self) -> dict:
         """ Train the model for one epoch, splitting the training data into a training and validation set
 
@@ -390,8 +416,8 @@ class Pipeline():
         )
         
         # Create the dataloaders for the training and validation sets that will load in to the model
-        train_dataloader = self._get_dataloader(dataset=train_dataset, shuffle=True)
-        val_dataloader = self._get_dataloader(dataset=val_dataset, shuffle=False)
+        train_dataloader = self._get_dataloader(dataset=train_dataset, shuffle=True, split='train')
+        val_dataloader = self._get_dataloader(dataset=val_dataset, shuffle=False, split='val')
         
         # Set the model to train mode
         self.model.train()
@@ -563,7 +589,6 @@ class Pipeline():
             return 0
         return new_value / old_value - 1
     
-    
     def _is_better_metric(self, metric) -> bool:
         """ Determine if the current epoch is better than the best epoch based on the average change percentage of the loss and accuracy metrics
 
@@ -679,7 +704,7 @@ class Pipeline():
         """
         return f"{metric:.3f}"
     
-    def _get_dataloader(self, dataset, shuffle=True):
+    def _get_dataloader(self, dataset, split, shuffle=True):
         """ Get a DataLoader for the dataset
 
         Args:
@@ -689,14 +714,47 @@ class Pipeline():
         Returns:
             torch.utils.data.DataLoader: The DataLoader for the dataset 
         """
-        dataloader = torch.utils.data.DataLoader(
+        
+        dataloader = TransformDataLoader(
             dataset,
             batch_size=self.pipeline_config['training']['batch_size'],
             shuffle=shuffle,
             num_workers=self.pipeline_config['training']['num_workers'],
-            pin_memory=True)
+            pin_memory=True,
+            transform=self.transformer_manager.transformers[split]
+        )
         return dataloader
 
+    def _load_image(self, image_path: str, split: str) -> Image:
+        """ Load the image from the provided path and apply the transformers for the specified split
+
+        Args:
+            image_path (str): The path to the image file
+            split (str): The dataset split that the image belongs to (train, val, test)
+
+        Raises:
+            ValueError: If the split is not one of 'train', 'val', or 'test'
+            FileNotFoundError: If the image file is not found at the provided path
+
+        Returns:
+            Image: The loaded image with the transformers applied
+        """
+        # Check right split was provided
+        if split not in ['train', 'val', 'test']:
+            logger.error(f"Split must be one of 'train', 'val', or 'test', not {split}")
+            raise ValueError(f"Split must be one of 'train', 'val', or 'test', not {split}")
+        
+        # Load the image
+        try:
+            image = Image.open(image_path).convert('RGB')
+        except FileNotFoundError as e:
+            logger.error(f"Image file not found at {image_path} - {e}")
+            raise FileNotFoundError(f"Image file not found at {image_path} - {e}")
+        
+        # Apply the transformers
+        image = self.transformer_manager.transformers[split](image)
+        
+        return image
 
 def train(config):
     """ A method/function to run the training pipeline
@@ -730,3 +788,14 @@ def train(config):
     logger.info("Training pipeline completed")
     
     return pipeline_package
+
+
+def predict(config, image_path:str):
+    
+    logger.debug("Running the prediction pipeline")
+     
+    # Initialise the Pipeline
+    pipeline = Pipeline(config)
+    
+    # Load the Image
+    prediction = pipeline.predict_model(image_path)

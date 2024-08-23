@@ -1,7 +1,6 @@
 from loguru import logger
 from PIL import Image
 import torch
-import torchvision
 import numpy as np
 import os
 import re
@@ -9,17 +8,9 @@ import re
 
 class CropCCMTDataset(torch.utils.data.Dataset):
 
-    def __init__(self, dataset_path, transformers=None, split='train', crop_index_map: dict = None, state_index_map: dict = None):
-        if not isinstance(transformers, torchvision.transforms.Compose):
-            logger.error(
-                f"Invalid transforms: {transformers}. Must be of type {torchvision.transforms.Compose}"
-            )
-            raise ValueError(
-                f"Invalid transforms: {transformers}. Must be of type {torchvision.transforms.Compose}"
-            )
+    def __init__(self, dataset_path, split='train', crop_index_map: dict = None, state_index_map: dict = None):
 
         self.root = dataset_path
-        self.transforms = transformers
         self.split = split
 
         self.data_map = {'crop': {}, 'state': {}}
@@ -174,9 +165,6 @@ class CropCCMTDataset(torch.utils.data.Dataset):
         # Convert crop and state to numeric labels
         crop_label = self.crops.index(crop)
         state_label = self.states.index(state)
-
-        if self.transforms:
-            img = self.transforms(img)
 
         return img, crop_label, state_label
 
