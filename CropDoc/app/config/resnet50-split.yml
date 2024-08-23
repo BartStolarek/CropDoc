@@ -70,3 +70,8 @@ evaluation:
     - precision
     - recall
   batch_size: 64
+prediction:
+  crop:
+    confidence_threshold: 0.2
+  state:
+    confidence_threshold: 0.2

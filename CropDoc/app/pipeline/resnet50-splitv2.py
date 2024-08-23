@@ -12,6 +12,7 @@ from loguru import logger
 from PIL import Image
 from tqdm import tqdm
 import shutil
+import json
 
 from app.pipeline_helper.transformer import TransformerManager
 from app.pipeline_helper.dataset import CropCCMTDataset
@@ -22,6 +23,7 @@ from pprint import pprint
 warnings.filterwarnings("ignore",
                         category=FutureWarning,
                         module="torch.nn.parallel.parallel_apply")
+
 
 class MultiHeadResNetModel(torch.nn.Module):
     """A multi-head ResNet model for the CropCCMT dataset
@@ -110,7 +112,16 @@ class Pipeline():
         self.dataset_root = self.pipeline_config['dataset_dir']
         self._validate_dataset_root(self.dataset_root)
         
-    def predict_model(self, image_path: str):
+    def predict_model(self, image_path: str) -> dict:
+        """ Predict the crop and state of the image at the provided path
+
+        Args:
+            image_path (str): The path to the image file, suggest using data/tmp folder
+
+        Returns:
+            dict: A dictionary containing the prediction results for the crop and state
+        """
+        
         
         # Load the saved trained pipeline
         pipeline_path = os.path.join(self.pipeline_output_dir, 'final', f'{self.pipeline_name}-{self.pipeline_version}.pth') # Get the path of the final pipeline
@@ -136,10 +147,88 @@ class Pipeline():
         # Load the image and apply transformers
         image = self._load_image(image_path, split='test')
         
+        # Unsqueeze the image to add a batch dimension
+        image = image.unsqueeze(0).to(self.model.device)
         
+        # Feed the image to the model and make a prediction
+        with torch.no_grad():
+            crop_predictions, state_predictions = self.model(image) # Get the pytorch tensors (multi dimensional arrays) with raw scores (not probabilities), shape: (1, num_classes)
+            
+        # Get the predicted classes
+        crop_confidence, predicted_crop = torch.max(crop_predictions, 1) # Tensor with highest probability class, shape: (1), Tensor with index of highest probability class, shape: (1)
+        state_confidence, predicted_state = torch.max(state_predictions, 1)
         
+        # Apply softmax to get probabilities
+        crop_probabilities = torch.nn.functional.softmax(crop_predictions, dim=1) # Tensor with probabilities for each class summing to 1, shape: (1, num_classes)
+        state_probabilities = torch.nn.functional.softmax(state_predictions, dim=1) # Tensor with probabilities for each class summing to 1, shape: (1, num_classes)
+        
+        # Convert to numpy for easier handling
+        crop_confidence = crop_confidence.cpu().numpy() 
+        state_confidence = state_confidence.cpu().numpy()
+        predicted_crop = predicted_crop.cpu().numpy()
+        predicted_state = predicted_state.cpu().numpy()
+        
+        # Apply confidence threshold
+        crop_mask = crop_confidence > self.pipeline_config['prediction']['crop']['confidence_threshold']  # A 1D boolean array with True if confidence is above threshold, False otherwise
+        state_mask = state_confidence > self.pipeline_config['prediction']['state']['confidence_threshold']
+        
+        # Get the crop class prediction and confidence
+        crop_prediction = self.crop_index_map[predicted_crop[0]] if crop_mask[0] else 'Unknown' # Get the crop class name from the index if mask is True, otherwise 'Unknown'
+        state_prediction = self.state_index_map[predicted_state[0]] if state_mask[0] else 'Unknown' # Get the state class name from the index if mask is True, otherwise 'Unknown'
+        
+        # Get class names for all classes
+        crop_class_names = [self.crop_index_map[i] for i in range(len(self.crop_index_map))]
+        state_class_names = [self.state_index_map[i] for i in range(len(self.state_index_map))]
+
+        # Map probabilities to class names
+        crop_probabilities_dict = dict(zip(crop_class_names, crop_probabilities.squeeze().cpu().numpy()))
+        state_probabilities_dict = dict(zip(state_class_names, state_probabilities.squeeze().cpu().numpy()))
+
+        result = {
+            'crop': {
+                'prediction': crop_prediction,
+                'confidence': crop_confidence[0],
+                'confidence_threshold': self.pipeline_config['prediction']['crop']['confidence_threshold'],
+                'class_probabilities': crop_probabilities_dict
+            },
+            'state': {
+                'prediction': state_prediction,
+                'confidence': state_confidence[0],
+                'confidence_threshold': self.pipeline_config['prediction']['state']['confidence_threshold'],
+                'class_probabilities': state_probabilities_dict
+            }
+        }
+        
+        logger.info(f"Prediction for image {image_path}:\n{result}")
+        
+        return result
     
+    def save_prediction(self, prediction: dict):
+        """ Save the prediction to a file in the predictions folder
+
+        Args:
+            prediction (dict): A dict of the prediction results for the crop and state
+        """
         
+        logger.debug("Saving prediction")
+        
+        # Get the prediction folder within the pipeline folder
+        prediction_folder = os.path.join(self.pipeline_output_dir, 'predictions')
+        
+        # Ensure the directory exists
+        os.makedirs(prediction_folder, exist_ok=True)
+        
+        # Get the current time to use as a unique identifier
+        current_time = time.strftime("%Y%m%d-%H%M%S")
+        
+        # Save the prediction to a file
+        prediction_file = os.path.join(prediction_folder, f'{self.pipeline_name}-{self.pipeline_version}-{current_time}.json')
+        
+        with open(prediction_file, 'w') as f:
+            json.dump(prediction, f)
+            
+        logger.info(f"Saved prediction to {prediction_file}")    
+       
     def train_model(self):
         """ Starts training the model and determining the best performing model. 
         The model will be trained for the number of epochs specified in the config file
@@ -756,6 +845,7 @@ class Pipeline():
         
         return image
 
+
 def train(config):
     """ A method/function to run the training pipeline
 
@@ -790,7 +880,16 @@ def train(config):
     return pipeline_package
 
 
-def predict(config, image_path:str):
+def predict(config, image_path: str) -> dict:
+    """ A method/function to run the prediction pipeline
+
+    Args:
+        config (dict): Config file that has been loaded as a dict
+        image_path (str): A string pointing to the image in data/tmp
+
+    Returns:
+        dict: A dictionary containing the prediction results for the crop and state
+    """
     
     logger.debug("Running the prediction pipeline")
      
@@ -799,3 +898,10 @@ def predict(config, image_path:str):
     
     # Load the Image
     prediction = pipeline.predict_model(image_path)
+    
+    # Save prediction to a file
+    pipeline.save_prediction(prediction)
+    
+    logger.info("Prediction pipeline completed")
+    
+    return prediction
