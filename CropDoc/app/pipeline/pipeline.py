@@ -127,14 +127,27 @@ class Pipeline():
         pipeline_path = os.path.join(self.pipeline_output_dir, 'final', f'{self.pipeline_name}-{self.pipeline_version}.pth') # Get the path of the final pipeline
         pipeline = torch.load(pipeline_path, weights_only=False) # Load the pipeline
         
+        # Load the transformer manager to handle loading transformers from config
+        self.transformer_manager = TransformerManager(
+            self.pipeline_config['data']['transformers']  # TODO: Add to report that we are using transformers to augment the training data
+        )
+        
+        self.crop_index_map = pipeline['crop_index_map']
+        self.state_index_map = pipeline['state_index_map']
+        
         # Initialise a model
         self.model = MultiHeadResNetModel( # Create a new model
             num_classes_crop=len(pipeline['crop_index_map']),
             num_classes_state=len(pipeline['state_index_map'])
         )
         
-        # Load the trained model weights from the pipeline into the new model. 
-        self.model.load_state_dict(torch.load(pipeline_path, weights_only=False)['model_state_dict'])
+        try:
+            # Load the trained model weights from the pipeline into the new model. 
+            self.model.load_state_dict(torch.load(pipeline_path, weights_only=False)['model_state_dict'])
+        except RuntimeError as e:
+            logger.error(f"Error loading model, shape is wrong. Potential issues is that the config file's data reduce value is different from what was trained on. {e}")
+            raise RuntimeError(f"Error loading model, shape is wrong. Potential issues is that the config file's data reduce value is different from what was trained on. {e}")
+        
         
         # Set the model to eval mode
         self.model.eval()
@@ -146,6 +159,13 @@ class Pipeline():
         
         # Load the image and apply transformers
         image = self._load_image(image_path, split='test')
+        
+        # Convert PIL Image to PyTorch tensor
+        transform = torchvision.transforms.Compose([
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize using ImageNet stats
+        ])
+        image = transform(image)
         
         # Unsqueeze the image to add a batch dimension
         image = image.unsqueeze(0).to(self.model.device)
@@ -204,11 +224,7 @@ class Pipeline():
         return result
     
     def save_prediction(self, prediction: dict):
-        """ Save the prediction to a file in the predictions folder
-
-        Args:
-            prediction (dict): A dict of the prediction results for the crop and state
-        """
+        """ Save the prediction to a file in the predictions folder """
         
         logger.debug("Saving prediction")
         
@@ -222,13 +238,20 @@ class Pipeline():
         current_time = time.strftime("%Y%m%d-%H%M%S")
         
         # Save the prediction to a file
-        prediction_file = os.path.join(prediction_folder, f'{self.pipeline_name}-{self.pipeline_version}-{current_time}.json')
+        prediction_file = os.path.join(prediction_folder, f'{self.pipeline_name}-{self.pipeline_version}-{current_time}.npy')
         
-        with open(prediction_file, 'w') as f:
-            json.dump(prediction, f)
-            
-        logger.info(f"Saved prediction to {prediction_file}")    
-       
+        # Save the prediction using NumPy
+        np.save(prediction_file, prediction)
+        
+        logger.info(f"Saved prediction to {prediction_file}")
+        
+        # Optionally, save a human-readable text version
+        text_file = os.path.join(prediction_folder, f'{self.pipeline_name}-{self.pipeline_version}-{current_time}.txt')
+        with open(text_file, 'w') as f:
+            f.write(str(prediction))
+        
+        logger.info(f"Saved human-readable prediction to {text_file}")
+        
     def train_model(self):
         """ Starts training the model and determining the best performing model. 
         The model will be trained for the number of epochs specified in the config file
@@ -266,7 +289,7 @@ class Pipeline():
             # Load the crop and state index map from the saved file
             crop_index_map = torch.load(self.pipeline_path, weights_only=False)['crop_index_map']
             state_index_map = torch.load(self.pipeline_path, weights_only=False)['state_index_map']
-            
+
             # Give it to the dataset class to keep mapping the same
             dataset_kwargs['crop_index_map'] = crop_index_map
             dataset_kwargs['state_index_map'] = state_index_map
@@ -289,6 +312,8 @@ class Pipeline():
             num_classes_crop=self.train_data.get_unique_crop_count(),  # TODO: Add to report the count of unique classes for crop and state
             num_classes_state=self.train_data.get_unique_state_count()
         )
+        
+
         if pipeline_exists:
             self.model.load_state_dict(torch.load(self.pipeline_path, weights_only=False)['model_state_dict'])
         

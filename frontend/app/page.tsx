@@ -27,7 +27,7 @@ export default function Home() {
 
     try {
       // Call the API on localhost:5000
-      const response = await fetch('http://localhost:5000/model/predict', {
+      const response = await fetch('http://localhost:5000/pipeline/predict', {
         method: 'POST',
         body: formData,
       });
