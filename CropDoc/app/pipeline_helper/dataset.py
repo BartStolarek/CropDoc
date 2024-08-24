@@ -28,9 +28,13 @@ class CropCCMTDataset(torch.utils.data.Dataset):
 
         self.crops = self._get_unique_crops(crop_index_map)
         self.states = self._get_unique_states(state_index_map)
-        self.crop_index_map = {i: crop for i, crop in enumerate(self.crops)}
-        self.state_index_map = {i: state for i, state in enumerate(self.states)}
+        self.crop_index_map = self._generate_index_map(self.crops)
+        self.state_index_map = self._generate_index_map(self.states)
 
+    def _generate_index_map(self, class_list):
+        index_map = {i: class_name for i, class_name in enumerate(class_list)}
+        return index_map
+    
     def get_unique_crop_count(self):
         return len(self.crops)
 
@@ -63,6 +67,8 @@ class CropCCMTDataset(torch.utils.data.Dataset):
         self.labels = labels
         self.crops = self._get_unique_crops()
         self.states = self._get_unique_states()
+        self.crop_index_map = self._generate_index_map(self.crops)
+        self.state_index_map = self._generate_index_map(self.states)
 
         logger.info(f'Reduced dataset to {len(self.images)} images')
 
@@ -125,8 +131,7 @@ class CropCCMTDataset(torch.utils.data.Dataset):
         self.images = np.array(images, dtype=object)
         self.labels = np.array(labels, dtype=object)
 
-        logger.info(f"Crop Data Map: {self.data_map['crop']}")
-        logger.info(f"State Data Map: {self.data_map['state']}")
+        logger.info('Finished walking through root path')
 
     def _get_unique_crops(self, index_map=None):
         if not index_map:
@@ -170,4 +175,14 @@ class CropCCMTDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.images)
+    
+    def __str__(self):
+        string = "CCMT Augmented Dataset\n" + \
+            f"Split: {self.split}\n" + \
+            f"Image Count: {len(self.images)}\n" + \
+            f"Crop Class Count: {len(self.crops)}\n" + \
+            f"State Class Count: {len(self.states)}\n" + \
+            f"Crop Data Map: \n {self.data_map['crop']}\n" + \
+            f"State Data Map: \n {self.data_map['state']}\n"
+        return string
 

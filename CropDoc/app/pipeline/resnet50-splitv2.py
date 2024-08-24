@@ -48,31 +48,19 @@ class Pipeline():
         self.dataset_root = self.pipeline_config['dataset_dir']
         self._validate_dataset_root(self.dataset_root)
     
-    def test_model(self, config: dict):
+    def test_model(self):
         
         # Load the saved trained pipeline
         pipeline_path = os.path.join(self.pipeline_output_dir, 'final', f'{self.pipeline_name}-{self.pipeline_version}.pth') # Get the path of the final pipeline
-        pipeline = torch.load(pipeline_path, weights_only=True) # Load the pipeline
+        pipeline = torch.load(pipeline_path, weights_only=False) # Load the pipeline
         
         # Load the metrics
         self.progression_metrics = pipeline['progression_metrics']
         self.performance_metrics = pipeline['performance_metrics']
         
-        # Initialise a model
-        self.model = MultiHeadResNetModel( # Create a new model
-            num_classes_crop=len(pipeline['crop_index_map']),
-            num_classes_state=len(pipeline['state_index_map'])
-        )
-        
-        # Load the trained model weights from the pipeline into the new model.
-        self.model.load_state_dict(torch.load(pipeline_path, weights_only=True)['model_state_dict'])
-        
-        # Set the model to eval mode
-        self.model.eval()
-        
-        # Load transformers
+        # Load the transformer manager to handle loading transformers from config
         self.transformer_manager = TransformerManager(
-            self.pipeline_config['data']['transformers']
+            self.pipeline_config['data']['transformers']  # TODO: Add to report that we are using transformers to augment the training data
         )
         
         # Load the test dataset
@@ -87,13 +75,37 @@ class Pipeline():
             **dataset_kwargs
         )
         
+        # If in development dataset needs to be reduced for faster training
+        development_reduction = self.pipeline_config['data']['reduce']
+        if development_reduction < 1:
+            self.test_data.equal_reduce(development_reduction)
+            
+        self.crop_index_map = self.test_data.crop_index_map
+        self.state_index_map = self.test_data.state_index_map
+    
+        # Initialise a model
+        self.model = MultiHeadResNetModel( # Create a new model
+            num_classes_crop=self.test_data.get_unique_crop_count(),
+            num_classes_state=self.test_data.get_unique_state_count()
+        )
+        
+        # Load the trained model weights from the pipeline into the new model.
+        self.model.load_state_dict(torch.load(pipeline_path, weights_only=False)['model_state_dict'])
+        
+        # Set the model to eval mode
+        self.model.eval()
+        
         # Define the test dataloader
         test_dataloader = self._get_dataloader(self.test_data, split='test', shuffle=False)
+        
+        # Set the criterion for the loss function
+        self.crop_criterion = torch.nn.CrossEntropyLoss()
+        self.state_criterion = torch.nn.CrossEntropyLoss()
         
         with torch.no_grad():
             
             # Feed the model the test data
-            test_metrics = self._feed_model(test_dataloader)
+            test_metrics = self._feed_model(test_dataloader, capture_batches=False)
             self.performance_metrics['test'] = test_metrics
             
         logger.info(f'Test Results:\n {test_metrics}')
@@ -113,7 +125,7 @@ class Pipeline():
         
         # Load the saved trained pipeline
         pipeline_path = os.path.join(self.pipeline_output_dir, 'final', f'{self.pipeline_name}-{self.pipeline_version}.pth') # Get the path of the final pipeline
-        pipeline = torch.load(pipeline_path, weights_only=True) # Load the pipeline
+        pipeline = torch.load(pipeline_path, weights_only=False) # Load the pipeline
         
         # Initialise a model
         self.model = MultiHeadResNetModel( # Create a new model
@@ -122,7 +134,7 @@ class Pipeline():
         )
         
         # Load the trained model weights from the pipeline into the new model. 
-        self.model.load_state_dict(torch.load(pipeline_path, weights_only=True)['model_state_dict'])
+        self.model.load_state_dict(torch.load(pipeline_path, weights_only=False)['model_state_dict'])
         
         # Set the model to eval mode
         self.model.eval()
@@ -243,30 +255,34 @@ class Pipeline():
             'dataset_path': self.dataset_root,
             'split': 'train'
         }
-        if pipeline_exists:
-            # Load the crop and state index map from the saved file
-            crop_index_map = torch.load(self.pipeline_path, weights_only=True)['crop_index_map']
-            state_index_map = torch.load(self.pipeline_path, weights_only=True)['state_index_map']
-            
-            # Give it to the dataset class to keep mapping the same
-            dataset_kwargs['crop_index_map'] = crop_index_map
-            dataset_kwargs['state_index_map'] = state_index_map
+       
         
         # Initialise the training dataset
         self.train_data = CropCCMTDataset(
             **dataset_kwargs
         )
         
+        if pipeline_exists:
+            # Load the crop and state index map from the saved file
+            crop_index_map = torch.load(self.pipeline_path, weights_only=False)['crop_index_map']
+            state_index_map = torch.load(self.pipeline_path, weights_only=False)['state_index_map']
+            
+            # Give it to the dataset class to keep mapping the same
+            dataset_kwargs['crop_index_map'] = crop_index_map
+            dataset_kwargs['state_index_map'] = state_index_map
+        
         # Resave the crop and state index maps
         self.crop_index_map = self.train_data.crop_index_map
         self.state_index_map = self.train_data.state_index_map
         
-        logger.info(f"Loaded training dataset {self.train_data}")
+        logger.debug(f"Pipeline\nCrop index map: {self.crop_index_map}")
+        logger.debug(f"Pipeline\nState index map: {self.state_index_map}")
         
         # If in development dataset needs to be reduced for faster training
         development_reduction = self.pipeline_config['data']['reduce']
         if development_reduction < 1:
             self.train_data.equal_reduce(development_reduction)
+        
             
         # Define the model
         self.model = MultiHeadResNetModel(
@@ -274,7 +290,7 @@ class Pipeline():
             num_classes_state=self.train_data.get_unique_state_count()
         )
         if pipeline_exists:
-            self.model.load_state_dict(torch.load(self.pipeline_path, weights_only=True)['model_state_dict'])
+            self.model.load_state_dict(torch.load(self.pipeline_path, weights_only=False)['model_state_dict'])
         
         # Define the loss functions for both heads
         self.crop_criterion = torch.nn.CrossEntropyLoss()  # TODO: Add to report that we are using CrossEntropyLoss for the loss functions for both heads
@@ -286,7 +302,7 @@ class Pipeline():
             lr=self.pipeline_config['training']['learning_rate']
         )
         if pipeline_exists:
-            self.optimiser.load_state_dict(torch.load(self.pipeline_path, weights_only=True)['optimiser_state_dict'])
+            self.optimiser.load_state_dict(torch.load(self.pipeline_path, weights_only=False)['optimiser_state_dict'])
         
         # Define the learning rate scheduler, which will reduce the learning rate when the model stops improving so that it can find a better minima
         active_scheduler = self.pipeline_config['training']['lr_scheduler']['active']  # Obtain the active scheduler set in the config
@@ -297,7 +313,7 @@ class Pipeline():
             **scheduler_config
         )
         if pipeline_exists:
-            self.scheduler.load_state_dict(torch.load(self.pipeline_path, weights_only=True)['scheduler_state_dict'])
+            self.scheduler.load_state_dict(torch.load(self.pipeline_path, weights_only=False)['scheduler_state_dict'])
         
         logger.info('Pipeline Initialisation Complete')
         
@@ -313,7 +329,7 @@ class Pipeline():
         # Define the number of epochs to train for and set the epoch range
         self.epochs = self.pipeline_config['training']['epochs']
         if pipeline_exists:
-            checkpoint = torch.load(self.pipeline_path, weights_only=True)
+            checkpoint = torch.load(self.pipeline_path, weights_only=False)
             start = checkpoint['epochs'] + 1
             end = start + self.epochs
             self.total_pretrained_epochs = checkpoint['epochs']
@@ -328,8 +344,8 @@ class Pipeline():
         epochs_progress = tqdm(range(start, end), desc="Epoch", leave=True, ncols=int(self.terminal_width * 0.99))
         
         if pipeline_exists:
-            self.progression_metrics = torch.load(self.pipeline_path, weights_only=True)['progression_metrics']
-            self.performance_metrics = torch.load(self.pipeline_path, weights_only=True)['performance_metrics']
+            self.progression_metrics = torch.load(self.pipeline_path, weights_only=False)['progression_metrics']
+            self.performance_metrics = torch.load(self.pipeline_path, weights_only=False)['performance_metrics']
             
         else:
             self.progression_metrics = []  # Progression metrics will be a list of epoch number and the epochs metrics
@@ -519,7 +535,7 @@ class Pipeline():
         
         return epoch_metrics
         
-    def _feed_model(self, dataloader, train=False) -> dict:
+    def _feed_model(self, dataloader, train=False, capture_batches=True) -> dict:
         """ Feed the model with the data from the dataloader to train/validate/test the model
 
         Args:
@@ -548,7 +564,7 @@ class Pipeline():
         }
         
         # Create the batch progress bar
-        
+        self.terminal_width = shutil.get_terminal_size().columns
         batch_progress = tqdm(enumerate(dataloader), desc="Batch", leave=False, total=len(dataloader), ncols=int(self.terminal_width * 0.99))
         
         # Start feeding the model in batches
@@ -591,24 +607,25 @@ class Pipeline():
             all_state_labels.extend(state_labels.cpu().numpy())
             
             # Capture batch metrics
-            batch_metrics = {
-                'loss': {
-                    'crop': loss_crop_batch.item(),
-                    'state': loss_state_batch.item(),
-                    'combined': loss_combined_batch.item(),
-                },
-                'accuracy': {
-                    'crop': correct_crop_batch / count_batch,
-                    'state': correct_state_batch / count_batch,
-                    'average': ((correct_crop_batch / count_batch) + (correct_state_batch / count_batch)) / 2
-                },
-                'correct': {
-                    'crop': correct_crop_batch,
-                    'state': correct_state_batch,
-                },
-                'count': count_batch
-            }
-            metrics['batches'].append([i, batch_metrics])
+            if capture_batches:
+                batch_metrics = {
+                    'loss': {
+                        'crop': loss_crop_batch.item(),
+                        'state': loss_state_batch.item(),
+                        'combined': loss_combined_batch.item(),
+                    },
+                    'accuracy': {
+                        'crop': correct_crop_batch / count_batch,
+                        'state': correct_state_batch / count_batch,
+                        'average': ((correct_crop_batch / count_batch) + (correct_state_batch / count_batch)) / 2
+                    },
+                    'correct': {
+                        'crop': correct_crop_batch,
+                        'state': correct_state_batch,
+                    },
+                    'count': count_batch
+                }
+                metrics['batches'].append([i, batch_metrics])
             
             # Update total epoch metrics
             loss_crop_total += loss_crop_batch.item()
@@ -618,7 +635,8 @@ class Pipeline():
             correct_state_total += correct_state_batch
             count_total += count_batch
             
-            batch_progress.set_postfix(self._format_metrics(batch_metrics))
+            if capture_batches:
+                batch_progress.set_postfix(self._format_metrics(batch_metrics))
             
         metrics['loss'] = {
             'crop': loss_crop_total / len(dataloader),
@@ -644,8 +662,8 @@ class Pipeline():
         state_confusion_matrix = confusion_matrix(all_state_labels, all_state_predictions)
         
         # Calculate precision, recall, f1 score
-        crop_precision, crop_recall, crop_f1, crop_support = precision_recall_fscore_support(all_crop_labels, all_crop_predictions, average='weighted')
-        state_precision, state_recall, state_f1, state_support = precision_recall_fscore_support(all_state_labels, all_state_predictions, average='weighted')
+        crop_precision, crop_recall, crop_f1, crop_support = precision_recall_fscore_support(all_crop_labels, all_crop_predictions, average='weighted', zero_division=0)
+        state_precision, state_recall, state_f1, state_support = precision_recall_fscore_support(all_state_labels, all_state_predictions, average='weighted', zero_division=0)
         
         # Add these metrics to your existing metrics dictionary
         metrics['confusion_matrix'] = {
@@ -771,15 +789,14 @@ class Pipeline():
 
         if isinstance(metrics, list) and isinstance(dataset_names, list) and len(metrics) == len(dataset_names):
             formatted_metrics = {}
-            zipped_metrics = zip(metrics, dataset_names)
-            for i, (metric, dataset_name) in enumerate(zipped_metrics):
-                letter = dataset_name[i][0].upper()
+            for i in range(len(metrics)):
+                letter = dataset_names[i][0].upper()
                 
                 try:
-                    formatted_metrics[f'{letter}LC'] = self._format_loss(metric['loss']['crop'])
-                    formatted_metrics[f'{letter}LS'] = self._format_loss(metric['loss']['state'])
-                    formatted_metrics[f'{letter}LA'] = self._format_accuracy(metric['accuracy']['crop'])
-                    formatted_metrics[f'{letter}SA'] = self._format_accuracy(metric['accuracy']['state'])
+                    formatted_metrics[f'{letter}CL'] = self._format_loss(metrics[i]['loss']['crop'])
+                    formatted_metrics[f'{letter}SL'] = self._format_loss(metrics[i]['loss']['state'])
+                    formatted_metrics[f'{letter}CA'] = self._format_accuracy(metrics[i]['accuracy']['crop'])
+                    formatted_metrics[f'{letter}SA'] = self._format_accuracy(metrics[i]['accuracy']['state'])
                 except KeyError as e:
                     logger.error(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}")
                     raise ValueError(f"Metrics dictionary should have the keys 'loss' and 'accuracy' - {e}")
