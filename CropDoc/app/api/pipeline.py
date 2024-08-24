@@ -1,4 +1,4 @@
-# app/api/model.py
+# app/api/pipeline.py
 
 from flask import Blueprint, request, jsonify
 from flask_restx import Namespace, Resource, fields
@@ -10,42 +10,44 @@ from app.handler.pipeline import handle_pipeline
 from loguru import logger
 from app.config import AppConfig
 
-model_blueprint = Blueprint('model', __name__)
-model_ns = Namespace('model', description='Model operations')
+pipeline_blueprint = Blueprint('pipeline', __name__)
+pipeline_ns = Namespace('pipeline', description='pipeline operations')
 
-main_api.add_namespace(model_ns)
+main_api.add_namespace(pipeline_ns)
 
-# Define the model data structure (this can be updated according to your needs)
-model_data = model_ns.model('ModelData', {
-    'model': fields.String(description='Model data')
+# Define the pipeline data structure (this can be updated according to your needs)
+pipeline_data = pipeline_ns.pipeline('pipelineData', {
+    'pipeline': fields.String(description='pipeline data')
 })
 
-@model_ns.route('/')
-class ModelResource(Resource):
-    @model_ns.doc(
-        'get_model',
-        description='Retrieve information about the current disease classification model'
-    )
-    @model_ns.marshal_with(model_data)
-    def get(self):
-        """Get model data"""
-        return {'model': 'model_data'}
 
-@model_ns.route('/predict')
+@pipeline_ns.route('/')
+class pipelineResource(Resource):
+    @pipeline_ns.doc(
+        'get_pipeline',
+        description='Retrieve information about the current disease classification pipeline'
+    )
+    @pipeline_ns.marshal_with(pipeline_data)
+    def get(self):
+        """Get pipeline data"""
+        return {'pipeline': 'pipeline_data'}
+
+
+@pipeline_ns.route('/predict')
 class PredictResource(Resource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # You might need to initialize your model here, if it's not already initialized
-        # self.model = load_your_model()
+        # You might need to initialize your pipeline here, if it's not already initialized
+        # self.pipeline = load_your_pipeline()
 
-    @model_ns.doc(
+    @pipeline_ns.doc(
         'predict',
         description='Predict the class of the uploaded image'
     )
     def post(self):
         """Predict the class of the uploaded image"""
         
-        print('PredictResource post() method called')
+        logger.info('Received POST request to predict')
 
         if 'file' not in request.files:
             logger.debug('No file key in request.files')
@@ -62,6 +64,12 @@ class PredictResource(Resource):
             temp_dir = os.path.join(AppConfig.DATA_DIR, 'tmp')
             os.makedirs(temp_dir, exist_ok=True)  # Create the directory if it does not exist
             
+            # Generate random 25 character string
+            token = os.urandom(25).hex()
+            
+            # Add token to filename
+            filename = f'{filename}_{token}'
+            
             file_path = os.path.join(temp_dir, filename)
             file.save(file_path)
             
@@ -69,20 +77,16 @@ class PredictResource(Resource):
             
             # Load the image and make prediction (pseudo-code)
             # image = load_image(file_path)
-            # prediction = self.model.predict(image)
+            # prediction = self.pipeline.predict(image)
             config = 'resnet50-split'
-            pipeline_file = 'resnet50-split'
-            method = 'predict_one'
+            pipeline_file = 'pipeline'
+            method = 'predict'
             kwargs = {
-                'file_path': file_path
+                'image_path': file_path
             }
             
-            results = handle_pipeline(file=pipeline_file, method=method, model_config=config, **kwargs)
+            results = handle_pipeline(file=pipeline_file, method=method, pipeline_config=config, **kwargs)
             
-            
-            # # For demo purposes, we'll just return a dummy response
-            # prediction = {'class': 'dummy_class', 'confidence': 0.95}
-
             # Remove the file after processing
             os.remove(file_path)
             
