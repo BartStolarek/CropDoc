@@ -25,15 +25,14 @@ def create_app(config=AppConfig):
     allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
     CORS(app, supports_credentials=True, origins=allowed_origins, methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"], allow_headers=['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'])
 
-    
     # Create a pretty logger
     setup_logger()
 
     # Import and register blueprints
     from app.api.health import health_blueprint
     app.register_blueprint(health_blueprint)
-    from app.api.model import model_blueprint
-    app.register_blueprint(model_blueprint)
+    from app.api.pipeline import pipeline_blueprint
+    app.register_blueprint(pipeline_blueprint)
 
     main_api.init_app(app)
 

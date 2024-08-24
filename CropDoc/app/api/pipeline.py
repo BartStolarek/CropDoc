@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify
 from flask_restx import Namespace, Resource, fields
 from werkzeug.utils import secure_filename
 import os
+import numpy as np
 
 from app import main_api
 from app.handler.pipeline import handle_pipeline
@@ -16,7 +17,7 @@ pipeline_ns = Namespace('pipeline', description='pipeline operations')
 main_api.add_namespace(pipeline_ns)
 
 # Define the pipeline data structure (this can be updated according to your needs)
-pipeline_data = pipeline_ns.pipeline('pipelineData', {
+pipeline_data = pipeline_ns.model('pipelineData', {
     'pipeline': fields.String(description='pipeline data')
 })
 
@@ -64,12 +65,6 @@ class PredictResource(Resource):
             temp_dir = os.path.join(AppConfig.DATA_DIR, 'tmp')
             os.makedirs(temp_dir, exist_ok=True)  # Create the directory if it does not exist
             
-            # Generate random 25 character string
-            token = os.urandom(25).hex()
-            
-            # Add token to filename
-            filename = f'{filename}_{token}'
-            
             file_path = os.path.join(temp_dir, filename)
             file.save(file_path)
             
@@ -87,11 +82,24 @@ class PredictResource(Resource):
             
             results = handle_pipeline(file=pipeline_file, method=method, pipeline_config=config, **kwargs)
             
+            # Convert NumPy types to native Python types
+            def convert_to_serializable(obj):
+                if isinstance(obj, np.generic):
+                    return obj.item()
+                elif isinstance(obj, dict):
+                    return {key: convert_to_serializable(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_to_serializable(item) for item in obj]
+                else:
+                    return obj
+
+            serializable_results = convert_to_serializable(results)
+            
             # Remove the file after processing
             os.remove(file_path)
             
-            logger.info(f'Responding with prediction: {results}')
+            logger.info(f'Responding with prediction: {serializable_results}')
             
-            return jsonify(results)
+            return jsonify(serializable_results)
 
         return {'message': 'File upload failed'}, 500

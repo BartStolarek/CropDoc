@@ -26,7 +26,7 @@ training:
   loss_function: # List of loss functions can be found here: https://pytorch.org/docs/stable/nn.html#loss-functions  
     type: CrossEntropyLoss
 data:
-  reduce: 0.1 # Percentage of data from dataset to be used for training (0-1), can be lowered to speed up training to test development faster
+  reduce: 1 # Percentage of data from dataset to be used for training (0-1), can be lowered to speed up training to test development faster
   transformers: # List of data transformers can be found here: https://pytorch.org/vision/0.9/transforms.html
     train:
       - type: RandomResizedCrop

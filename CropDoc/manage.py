@@ -74,7 +74,7 @@ def pipeline(file, method, config, dataset, kwargs):
     result = handle_pipeline(file=file,
                              method=method,
                              dataset=dataset,
-                             model_config=config,
+                             pipeline_config=config,
                              **kwargs_dict)
     logger.info(f"Pipeline command {'successful' if result else 'failed'}")
 

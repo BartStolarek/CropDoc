@@ -7,11 +7,11 @@ from app.utility.file import get_file_method, load_yaml_file_as_dict
 
 def handle_pipeline(file: str,
                     method: str,
-                    model_config: str,
+                    pipeline_config: str,
                     dataset: str = None,
                     **kwargs) -> bool:
     logger.debug(
-        f"Handling pipeline with file {file} and method {method}, using dataset {dataset} and model config {model_config}"
+        f"Handling pipeline with file {file} and method {method}, using dataset {dataset} and model config {pipeline_config}"
     )
     try:
         # Get the file method
@@ -21,11 +21,10 @@ def handle_pipeline(file: str,
                                       extension='py')
 
         # Load the model config
-        model_config = load_yaml_file_as_dict(directory='config',
-                                              file_name=model_config)
+        pipeline_config = load_yaml_file_as_dict(directory='config', file_name=pipeline_config)
 
         # Run pipeline command
-        result = method_func(config=model_config, **kwargs)
+        result = method_func(config=pipeline_config, **kwargs)
 
     except Exception as e:
         logger.error(
