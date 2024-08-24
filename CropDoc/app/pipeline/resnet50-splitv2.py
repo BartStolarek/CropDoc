@@ -13,6 +13,7 @@ from PIL import Image
 from tqdm import tqdm
 import shutil
 import json
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 
 from app.pipeline_helper.transformer import TransformerManager
 from app.pipeline_helper.dataset import CropCCMTDataset
@@ -47,11 +48,15 @@ class Pipeline():
         self.dataset_root = self.pipeline_config['dataset_dir']
         self._validate_dataset_root(self.dataset_root)
     
-    def _load_pipeline_and_model(self):
-
+    def test_model(self, config: dict):
+        
         # Load the saved trained pipeline
         pipeline_path = os.path.join(self.pipeline_output_dir, 'final', f'{self.pipeline_name}-{self.pipeline_version}.pth') # Get the path of the final pipeline
         pipeline = torch.load(pipeline_path, weights_only=True) # Load the pipeline
+        
+        # Load the metrics
+        self.progression_metrics = pipeline['progression_metrics']
+        self.performance_metrics = pipeline['performance_metrics']
         
         # Initialise a model
         self.model = MultiHeadResNetModel( # Create a new model
@@ -59,25 +64,41 @@ class Pipeline():
             num_classes_state=len(pipeline['state_index_map'])
         )
         
-        # Load the trained model weights from the pipeline into the new model. 
+        # Load the trained model weights from the pipeline into the new model.
         self.model.load_state_dict(torch.load(pipeline_path, weights_only=True)['model_state_dict'])
         
         # Set the model to eval mode
         self.model.eval()
         
-        return pipeline
-        
-    def evaluate_model(self, config: dict):
-        
-        # Load the saved trained pipeline
-        pipeline_path = os.path.join(self.pipeline_output_dir, 'final', f'{self.pipeline_name}-{self.pipeline_version}.pth') # Get the path of the final pipeline
-        pipeline = torch.load(pipeline_path, weights_only=True) # Load the pipeline
-        
-        # Initialise a model
-        self.model = MultiHeadResNetModel( # Create a new model
-            num_classes_crop=len(pipeline['crop_index_map']),
-            num_classes_state=len(pipeline['state_index_map'])
+        # Load transformers
+        self.transformer_manager = TransformerManager(
+            self.pipeline_config['data']['transformers']
         )
+        
+        # Load the test dataset
+        dataset_kwargs = {
+            'dataset_path': self.dataset_root,
+            'split': 'test',
+            'crop_index_map': pipeline['crop_index_map'],
+            'state_index_map': pipeline['state_index_map']
+        }
+        
+        self.test_data = CropCCMTDataset(
+            **dataset_kwargs
+        )
+        
+        # Define the test dataloader
+        test_dataloader = self._get_dataloader(self.test_data, split='test', shuffle=False)
+        
+        with torch.no_grad():
+            
+            # Feed the model the test data
+            test_metrics = self._feed_model(test_dataloader)
+            self.performance_metrics['test'] = test_metrics
+            
+        logger.info(f'Test Results:\n {test_metrics}')
+        
+        return test_metrics
         
     def predict_model(self, image_path: str) -> dict:
         """ Predict the crop and state of the image at the provided path
@@ -517,6 +538,11 @@ class Pipeline():
         correct_state_total = 0
         count_total = 0
         
+        all_crop_predictions = []
+        all_crop_labels = []
+        all_state_predictions = []
+        all_state_labels = []
+        
         metrics = {
             'batches': [],
         }
@@ -557,6 +583,12 @@ class Pipeline():
             correct_crop_batch = (predicted_crop == crop_labels).sum().item()
             correct_state_batch = (predicted_state == state_labels).sum().item()
             count_batch = crop_labels.size(0)
+            
+            # Store predictions and labels for later confusion matrix
+            all_crop_predictions.extend(predicted_crop.cpu().numpy())
+            all_crop_labels.extend(crop_labels.cpu().numpy())
+            all_state_predictions.extend(predicted_state.cpu().numpy())
+            all_state_labels.extend(state_labels.cpu().numpy())
             
             # Capture batch metrics
             batch_metrics = {
@@ -606,6 +638,36 @@ class Pipeline():
         }
         
         metrics['count'] = count_total
+        
+        # Calculate confusion matrices
+        crop_confusion_matrix = confusion_matrix(all_crop_labels, all_crop_predictions)
+        state_confusion_matrix = confusion_matrix(all_state_labels, all_state_predictions)
+        
+        # Calculate precision, recall, f1 score
+        crop_precision, crop_recall, crop_f1, crop_support = precision_recall_fscore_support(all_crop_labels, all_crop_predictions, average='weighted')
+        state_precision, state_recall, state_f1, state_support = precision_recall_fscore_support(all_state_labels, all_state_predictions, average='weighted')
+        
+        # Add these metrics to your existing metrics dictionary
+        metrics['confusion_matrix'] = {
+            'crop': crop_confusion_matrix.tolist(),
+            'state': state_confusion_matrix.tolist()
+        }
+        metrics['precision'] = {
+            'crop': crop_precision,
+            'state': state_precision
+        }
+        metrics['recall'] = {
+            'crop': crop_recall,
+            'state': state_recall
+        }
+        metrics['f1_score'] = {
+            'crop': crop_f1,
+            'state': state_f1
+        }
+        metrics['support'] = {
+            'crop': crop_support,
+            'state': state_support
+        }
         
         return metrics
                 
@@ -874,19 +936,19 @@ def predict(config, image_path: str) -> dict:
     return prediction
 
 
-def evaluate(config):
+def test(config):
     
-    logger.debug("Running the evaluation pipeline")
+    logger.debug("Running the test pipeline")
     
     # Initialise the Pipeline
     pipeline = Pipeline(config)
     
-    # Evaluate the model
-    pipeline.evaluate_model()
+    # Test the model
+    pipeline.test_model()
     
     # Package the pipeline for API return
     pipeline_package = pipeline.package()
     
-    logger.info("Evaluation pipeline completed")
+    logger.info("Test pipeline completed")
     
     return pipeline_package
