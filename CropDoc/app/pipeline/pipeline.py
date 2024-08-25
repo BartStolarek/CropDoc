@@ -16,7 +16,7 @@ import json
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 
 from app.pipeline_helper.transformer import TransformerManager
-from app.pipeline_helper.dataset import CropCCMTDataset
+from app.pipeline_helper.dataset import CropCCMTDataset, PlantVillageDataset, BaseDataset
 from app.pipeline_helper.dataloader import TransformDataLoader
 from app.pipeline_helper.model import MultiHeadResNetModel
 
@@ -71,9 +71,7 @@ class Pipeline():
             'state_index_map': pipeline['state_index_map']
         }
         
-        self.test_data = CropCCMTDataset(
-            **dataset_kwargs
-        )
+        self.test_data = self._get_dataset_object(**dataset_kwargs)
         
         # If in development dataset needs to be reduced for faster training
         development_reduction = self.pipeline_config['data']['reduce']
@@ -106,7 +104,8 @@ class Pipeline():
             
             # Feed the model the test data
             test_metrics = self._feed_model(test_dataloader, capture_batches=False)
-            self.performance_metrics['test'] = test_metrics
+            test_name = 'test' + '_' + self.pipeline_config['dataset_class']
+            self.performance_metrics[test_name] = test_metrics
             
         logger.info(f'Test Results:\n {test_metrics}')
         
@@ -286,10 +285,8 @@ class Pipeline():
         }
        
         
-        # Initialise the training dataset
-        self.train_data = CropCCMTDataset(
-            **dataset_kwargs
-        )
+        # Initialise the training dataset     
+        self.train_data = self._get_dataset_object(**dataset_kwargs)
         
         if pipeline_exists:
             # Load the crop and state index map from the saved file
@@ -565,7 +562,25 @@ class Pipeline():
             torch.cuda.empty_cache()
         
         return epoch_metrics
-        
+    
+    def _get_dataset_object(self, **kwargs) -> BaseDataset:
+        """ Get the dataset object based on the dataset class specified in the config file
+
+        Raises:
+            ValueError: If the dataset class is invalid
+
+        Returns:
+            BaseDataset: The dataset object
+        """
+        match self.pipeline_config['dataset_class']:
+            case 'CropCCMTDataset':
+                return CropCCMTDataset(**kwargs)
+            case 'PlantVillageDataset':
+                return PlantVillageDataset(**kwargs)
+            case _:
+                logger.error(f"Invalid dataset class: {self.pipeline_config['dataset_class']}, please update the config file")
+                raise ValueError(f"Invalid dataset class: {self.pipeline_config['dataset_class']}, please update the config file")
+      
     def _feed_model(self, dataloader, train=False, capture_batches=True) -> dict:
         """ Feed the model with the data from the dataloader to train/validate/test the model
 

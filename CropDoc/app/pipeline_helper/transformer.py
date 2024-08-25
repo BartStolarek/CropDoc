@@ -87,6 +87,6 @@ class TransformerManager():
         transform_dict.pop('type')
 
         transform_fn = getattr(torchvision.transforms, transform_name)
-        logger.info(f"Converted transformer dict to {transform_fn}")
+        logger.debug(f"Converted transformer dict to {transform_fn}")
         return transform_fn(**transform_dict)
 
