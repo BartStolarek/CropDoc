@@ -4,7 +4,34 @@ import torch
 import numpy as np
 import os
 import re
+from abc import ABC, abstractmethod
 
+
+class BaseDataset(torch.utils.data.Dataset, ABC):
+    
+    def __init__(self, dataset_path, split='train', crop_index_map: dict = None, state_index_map: dict = None):
+
+        self.root = dataset_path
+        self.split = split
+
+        self.data_map = {'crop': {}, 'state': {}}
+
+        self.images = np.empty(0, dtype=object)
+        self.labels = np.empty(
+            (0, 2), dtype=int)  # Two columns for crop and state labels
+
+        splits = ['train', 'test']
+        if split not in splits:
+            raise ValueError(
+                f"Invalid split: {split}. Must be one of {splits}")
+
+        self.walk_through_root_append_images_and_labels()
+
+        self.crops = self._get_unique_crops(crop_index_map)
+        self.states = self._get_unique_states(state_index_map)
+        self.crop_index_map = self._generate_index_map(self.crops)
+        self.state_index_map = self._generate_index_map(self.states)
+        
 
 class CropCCMTDataset(torch.utils.data.Dataset):
 
@@ -186,3 +213,14 @@ class CropCCMTDataset(torch.utils.data.Dataset):
             f"State Data Map: \n {self.data_map['state']}\n"
         return string
 
+
+class PlantVillageDataset(BaseDataset):
+    """A class to load the dataset from the data/dataset directory
+    
+    Dataset can be found: https://www.kaggle.com/datasets/abdallahalidev/plantvillage-dataset?resource=download
+
+    Args:
+        BaseDataset (torch.utils.data.Dataset): Base class for all datasets in PyTorch
+    """
+    
+    pass

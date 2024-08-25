@@ -188,13 +188,17 @@ class Pipeline():
         predicted_crop = predicted_crop.cpu().numpy()
         predicted_state = predicted_state.cpu().numpy()
         
-        # Apply confidence threshold
-        crop_mask = crop_confidence > self.pipeline_config['prediction']['crop']['confidence_threshold']  # A 1D boolean array with True if confidence is above threshold, False otherwise
-        state_mask = state_confidence > self.pipeline_config['prediction']['state']['confidence_threshold']
+        # Get the probability of the predicted class
+        crop_probability = torch.max(crop_probabilities).item()
+        state_probability = torch.max(state_probabilities).item()
         
+        # Apply confidence threshold
+        crop_mask = crop_probability > self.pipeline_config['prediction']['crop']['confidence_threshold']
+        state_mask = state_probability > self.pipeline_config['prediction']['state']['confidence_threshold']
+
         # Get the crop class prediction and confidence
-        crop_prediction = self.crop_index_map[predicted_crop[0]] if crop_mask[0] else 'Unknown' # Get the crop class name from the index if mask is True, otherwise 'Unknown'
-        state_prediction = self.state_index_map[predicted_state[0]] if state_mask[0] else 'Unknown' # Get the state class name from the index if mask is True, otherwise 'Unknown'
+        crop_prediction = self.crop_index_map[predicted_crop[0]] if crop_mask else 'Unknown'
+        state_prediction = self.state_index_map[predicted_state[0]] if state_mask else 'Unknown'
         
         # Get class names for all classes
         crop_class_names = [self.crop_index_map[i] for i in range(len(self.crop_index_map))]
@@ -208,12 +212,14 @@ class Pipeline():
             'crop': {
                 'prediction': crop_prediction,
                 'confidence': crop_confidence[0],
+                'probability': crop_probability,
                 'confidence_threshold': self.pipeline_config['prediction']['crop']['confidence_threshold'],
                 'class_probabilities': crop_probabilities_dict
             },
             'state': {
                 'prediction': state_prediction,
                 'confidence': state_confidence[0],
+                'probability': state_probability,
                 'confidence_threshold': self.pipeline_config['prediction']['state']['confidence_threshold'],
                 'class_probabilities': state_probabilities_dict
             }

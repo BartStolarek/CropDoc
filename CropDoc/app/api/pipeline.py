@@ -98,7 +98,7 @@ class PredictResource(Resource):
             # Remove the file after processing
             os.remove(file_path)
             
-            logger.info(f'Responding with prediction: {serializable_results}')
+            logger.info(f'Responding with prediction: {serializable_results[:10]}...')
             
             return jsonify(serializable_results)
 
