@@ -2,15 +2,16 @@ name: ResNet50
 type: Classification
 version: 1.3
 python_file:
-dataset_dir: data/datasets/CCMT Dataset-Augmented
+dataset_class: PlantVillageDataset  # Class names are; CropCCMTDataset, PlantVillageDataset
+dataset_dir: data/datasets/plantvillage/custom_selection  # Dataset directories include; CCMT Dataset-Augmented, 
 output_dir: data/output
 architecture:
   - type: ResNet
 training:
-  epochs: 150
-  checkpoint_interval: 10 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)
+  epochs: 2
+  checkpoint_interval: 2 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)
   validation_split: 0.2
-  batch_size: 512
+  batch_size: 32
   num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
   learning_rate: 0.005
   lr_scheduler:
