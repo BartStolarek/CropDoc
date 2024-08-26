@@ -2,6 +2,7 @@ import torch
 
 
 class TransformDataLoader(torch.utils.data.DataLoader):
+
     def __init__(self, dataset, transform, *args, **kwargs):
         self.dataset = dataset
         self.transform = transform

@@ -1,11 +1,11 @@
 # app/__init__.py
 
+import os
 from pathlib import Path
 
 from flask import Flask
-from flask_restx import Api
-import os
 from flask_cors import CORS
+from flask_restx import Api
 
 from app.config import AppConfig
 from app.utility.logger import setup_logger
@@ -22,8 +22,15 @@ def create_app(config=AppConfig):
     app = Flask(__name__)
     app.config.from_object(config)
 
-    allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
-    CORS(app, supports_credentials=True, origins=allowed_origins, methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"], allow_headers=['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'])
+    allowed_origins = os.getenv('ALLOWED_ORIGINS',
+                                'http://localhost:3000').split(',')
+    CORS(app,
+         supports_credentials=True,
+         origins=allowed_origins,
+         methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+         allow_headers=[
+             'Content-Type', 'Authorization', 'ngrok-skip-browser-warning'
+         ])
 
     # Create a pretty logger
     setup_logger()
