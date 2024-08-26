@@ -1,11 +1,14 @@
-from loguru import logger
-import torchvision
 from typing import List
+
+import torchvision
+from loguru import logger
+
 
 class TransformerManager():
 
     def __init__(self, transformers: dict[str, list[dict]]):
         self.transformers = self._get_transformers(transformers)
+        logger.info("Created a TransformerManager object with transformers")
 
     def __len__(self):
         return self._calculate_total_transforms()
@@ -37,12 +40,15 @@ class TransformerManager():
 
         # Get train transformers
         train_transformers = self._build_transformers(transformers['train'])
+        logger.info("Created train transformers")
 
         # Get val transformers
         val_transformers = self._build_transformers(transformers['val'])
+        logger.info("Created val transformers")
 
         # Get test transformers
         test_transformers = self._build_transformers(transformers['test'])
+        logger.info("Created test transformers")
 
         transformer_dict = {
             'train': train_transformers,
@@ -50,7 +56,9 @@ class TransformerManager():
             'test': test_transformers
         }
 
-        logger.info("Created transformers dict")
+        logger.info(
+            "Created a dict of transformers with keys 'train', 'val', and 'test' and corresponding composed transformers"
+        )
 
         return transformer_dict
 
@@ -75,6 +83,7 @@ class TransformerManager():
             except Exception as e:
                 logger.error(
                     f"Error parsing transform '{transform_dict}': {e}")
+                raise Exception(e)
 
         logger.info(f"Built transformers list {transforms_list}")
         return torchvision.transforms.Compose(transforms_list)
@@ -89,4 +98,3 @@ class TransformerManager():
         transform_fn = getattr(torchvision.transforms, transform_name)
         logger.debug(f"Converted transformer dict to {transform_fn}")
         return transform_fn(**transform_dict)
-

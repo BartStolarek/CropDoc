@@ -21,7 +21,8 @@ def handle_pipeline(file: str,
                                       extension='py')
 
         # Load the model config
-        pipeline_config = load_yaml_file_as_dict(directory='config', file_name=pipeline_config)
+        pipeline_config = load_yaml_file_as_dict(directory='config',
+                                                 file_name=pipeline_config)
 
         # Run pipeline command
         result = method_func(config=pipeline_config, **kwargs)
