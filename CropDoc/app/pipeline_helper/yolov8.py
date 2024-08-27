@@ -47,8 +47,9 @@ def validate():
 	model = YOLO(y_model)
 	model.val(
 	data=dataset_dir,
-	save=True,
-	batch=128
+	batch=128,
+    imgsz=160,
+    split='test'
 	)    
 
 if __name__ == '__main__':
