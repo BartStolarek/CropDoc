@@ -36,7 +36,20 @@ def classify():
     
 def predict():
     model = YOLO(y_model)
-    model.predict(data='test', save=True, imgsz=160, batch=128)
+    model.predict(
+        source='test/', 
+        save=True, 
+        imgsz=160, 
+        batch=128
+        )
+    
+def validate():
+	model = YOLO(y_model)
+	model.val(
+	data=dataset_dir,
+	save=True,
+	batch=128
+	)    
 
 if __name__ == '__main__':
     func = sys.argv[1]
@@ -49,5 +62,7 @@ if __name__ == '__main__':
     elif func == 'predict':
         print('Launching predict!')
         predict()        
-
+    elif func == 'validate':
+        print('Launching validate!')
+        validate() 
 
