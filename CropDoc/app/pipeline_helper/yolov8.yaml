@@ -1,0 +1,33 @@
+train: ../../../../yolov5/datasets/classify/train  # path to training data
+val: ../../../../yolov5/datasets/classify/train  # path to validation data
+test: ../../../../yolov5/datasets/classify/test  # path to test data
+
+nc: 26  # number of classes
+names: [
+'cashew', 
+'maize',
+'tomato',
+'cassava',
+'anthracnose-cashew',
+'bacterial-blight-cassava',
+'brown_spot-cassava',
+'fall_army_worm-maize',
+'grasshoper-maize',
+'green_mite-cassava',
+'gumosis-cashew',
+'healthy-cashew',
+'healthy-cassava',
+'healthy-maize',
+'healthy-tomato',
+'leaf_beetle-maize',
+'leaf_blight-maize',
+'leaf_blight-tomato',
+'leaf_curl-tomato',
+'leaf_miner-chasew',
+'leaf_spot-maize',
+'mosaic-cassava',
+'red_rust-cashew',
+'septoria_leaf_spot-tomato',
+'streak_virus-maize',
+'verticulium_wilt-tomato'
+]  # class names
