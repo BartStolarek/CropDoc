@@ -6,6 +6,7 @@ import warnings
 from collections import Counter
 from pprint import pprint
 from typing import Tuple
+import pandas as pd
 
 import numpy as np
 import torch
@@ -20,6 +21,7 @@ from app.pipeline_helper.dataset import (BaseDataset, CropCCMTDataset,
                                          PlantVillageDataset)
 from app.pipeline_helper.model import MultiHeadResNetModel
 from app.pipeline_helper.transformer import TransformerManager
+import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore",
                         category=FutureWarning,
@@ -60,10 +62,6 @@ class Pipeline():
         pipeline = torch.load(pipeline_path,
                               weights_only=False)  # Load the pipeline
 
-        # Load the metrics
-        self.progression_metrics = pipeline['progression_metrics']
-        self.performance_metrics = pipeline['performance_metrics']
-
         # Load the transformer manager to handle loading transformers from config
         self.transformer_manager = TransformerManager(
             self.pipeline_config['data']
@@ -102,6 +100,8 @@ class Pipeline():
         self.model.load_state_dict(
             torch.load(pipeline_path, weights_only=False)['model_state_dict'])
 
+        self._load_pipeline_meta(pipeline_path)
+        
         # Set the model to eval mode
         self.model.eval()
 
@@ -119,7 +119,7 @@ class Pipeline():
             # Feed the model the test data
             test_metrics = self._feed_model(test_dataloader,
                                             capture_batches=False)
-            test_name = 'test' + '_' + self.pipeline_config['dataset_class']
+            test_name = 'test' + '_' + self.pipeline_config['dataset_name']
             self.performance_metrics[test_name] = test_metrics
 
         logger.info(f'Test Results:\n {test_metrics}')
@@ -146,6 +146,9 @@ class Pipeline():
         pipeline = torch.load(pipeline_path,
                               weights_only=False)  # Load the pipeline
 
+        
+        self.performance_metrics = pipeline['performance_metrics']
+        self.progression_metrics = pipeline['progression_metrics']
         self.crop_index_map = pipeline['crop_index_map']
         self.state_index_map = pipeline['state_index_map']
 
@@ -516,8 +519,53 @@ class Pipeline():
 
         logger.info(f"Best performance metrics :\n {self.performance_metrics}")
 
-        logger.info('Training pipeline complete')
+        logger.info('Training pipeline complete')   
+    
+    def _load_pipeline_meta(self, pipeline_path: str):
+        """ Load the metadata from the pipeline file
 
+        Args:
+            pipeline_path (str): The path to the pipeline file
+
+        Returns:
+            dict: A dictionary containing the metadata from the pipeline file
+        """
+        pipeline = torch.load(pipeline_path, weights_only=False)
+        
+        
+        self.model = MultiHeadResNetModel(  # Create a new model
+            num_classes_crop=len(pipeline['crop_index_map']),
+            num_classes_state=len(pipeline['state_index_map']))
+        self.model.load_state_dict(
+            pipeline['model_state_dict'])
+        
+        self.optimiser = torch.optim.Adam(  # TODO: Add to the report that we are using Adam optimiser, and the learning rate it starts at
+            self.model.parameters(),
+            lr=self.pipeline_config['training']['learning_rate'])
+        self.optimiser.load_state_dict(
+            pipeline['optimiser_state_dict'])
+        
+        # Define the learning rate scheduler, which will reduce the learning rate when the model stops improving so that it can find a better minima
+        active_scheduler = self.pipeline_config['training']['lr_scheduler'][
+            'active']  # Obtain the active scheduler set in the config
+        scheduler_config = self.pipeline_config['training']['lr_scheduler'][
+            active_scheduler]  # Obtain the configuration for the active scheduler
+        scheduler_object = getattr(
+            torch.optim.lr_scheduler, active_scheduler
+        )  
+        self.scheduler = scheduler_object(self.optimiser, **scheduler_config)
+
+        self.scheduler.load_state_dict(
+            torch.load(pipeline_path,
+                        weights_only=False)['scheduler_state_dict'])
+        
+        self.progression_metrics = pipeline['progression_metrics']
+        self.performance_metrics = pipeline['performance_metrics']
+        self.crop_index_map = pipeline['crop_index_map']
+        self.state_index_map = pipeline['state_index_map']
+        if 'epochs' in pipeline.keys():
+            self.total_pretrained_epochs = pipeline['epochs']
+        
     def save_pipeline(self, epoch: int = None):
         """ Save the pipeline, including the model, optimiser, scheduler, progression metrics, and performance metrics
         as a checkpoint or the final pipeline
@@ -525,7 +573,7 @@ class Pipeline():
         Args:
             epoch (int, optional): The epoch number to save the checkpoint. Defaults to None if saving the final pipeline.
         """
-
+        
         # Create the save dictionary
         save_dict = {
             'model_state_dict': self.model.state_dict(),
@@ -536,6 +584,7 @@ class Pipeline():
             'crop_index_map': self.crop_index_map,
             'state_index_map': self.state_index_map,
         }
+        
 
         # Save the pipeline as a checkpoint or the final pipeline depending if a epoch was provided
         if epoch:
@@ -557,23 +606,171 @@ class Pipeline():
         if not epoch:
             logger.info(f"Saved the final pipeline to {file_path}")
 
-    def save_confusion_matrix(self):
-        """ Save the following metrics:
-        - Accuracy
-        - Precision
-        - Recall
-        - F1 Score
-        - Confusion Matrix
+    def evaluate_model(self):
+        
+        # Load the saved trained pipeline
+        self.pipeline_path = os.path.join(
+            self.pipeline_output_dir, 'final',
+            f'{self.pipeline_name}-{self.pipeline_version}.pth')
+        
+        self._load_pipeline_meta(self.pipeline_path)
+        
+        eval_output_dir = os.path.join(self.pipeline_output_dir, 'evaluation')
+        os.makedirs(eval_output_dir, exist_ok=True)
+        
+        # Generate Line graph for; Train Loss vs Validation Loss over epochs for both crop and state
+        epochs = [epoch for epoch, _ in self.progression_metrics]
+        train_values_crop = [metrics['train']['loss']['crop'] for _, metrics in self.progression_metrics]
+        train_values_state = [metrics['train']['loss']['state'] for _, metrics in self.progression_metrics]
+        val_values_crop = [metrics['val']['loss']['crop'] for _, metrics in self.progression_metrics]
+        val_values_state = [metrics['val']['loss']['state'] for _, metrics in self.progression_metrics]
+        
+        tcl_vs_vcl_graph = self._generate_line_graph(
+            epochs, {
+                'Train Crop Loss': train_values_crop,
+                'Validation Crop Loss': val_values_crop,
+                'Train State Loss': train_values_state,
+                'Validation State Loss': val_values_state
+            },
+            'Epochs',
+            'Loss',
+            'Train Loss vs Validation Loss')
+        tcl_vs_vcl_graph.savefig(os.path.join(eval_output_dir, 'train_loss_vs_val_loss.png'))
+        
+        # Generate Line graph for; Train Accuracy vs Validation Accuracy over epochs for both crop and state
+        train_values_crop = [metrics['train']['accuracy']['crop'] for _, metrics in self.progression_metrics]
+        train_values_state = [metrics['train']['accuracy']['state'] for _, metrics in self.progression_metrics]
+        val_values_crop = [metrics['val']['accuracy']['crop'] for _, metrics in self.progression_metrics]
+        val_values_state = [metrics['val']['accuracy']['state'] for _, metrics in self.progression_metrics]
+        
+        tca_vs_vca_graph = self._generate_line_graph(
+            epochs, {
+                'Train Crop Accuracy': train_values_crop,
+                'Validation Crop Accuracy': val_values_crop,
+                'Train State Accuracy': train_values_state,
+                'Validation State Accuracy': val_values_state
+            },
+            'Epochs',
+            'Accuracy',
+            'Train Accuracy vs Validation Accuracy')
+        tca_vs_vca_graph.savefig(os.path.join(eval_output_dir, 'train_acc_vs_val_acc.png'))
+        
+        # Generate Confusion matrices and performance metrics table for all test data
+        crop_metrics_data = {
+            'test_dataset': [],
+            'accuracy': [],
+            'loss': [],
+            'precision': [],
+            'recall': [],
+            'f1_score': []
+        }    
+        
+        state_metrics_data = {
+            'test_dataset': [],
+            'accuracy': [],
+            'loss': [],
+            'precision': [],
+            'recall': [],
+            'f1_score': []
+        }
+        confusion_matrices = []
+        for key, metrics in self.performance_metrics.items():
+            if 'test' in key:
+                confusion_matrix_crop_plot = self._generate_confusion_matrix(
+                    confusion_matrix=metrics['confusion_matrix']['crop'],
+                    title=f'{key}, Crop Confusion Matrix')
+                confusion_matrix_state_plot = self._generate_confusion_matrix(
+                    confusion_matrix=metrics['confusion_matrix']['state'],
+                    title=f'{key}, State Confusion Matrix')
+                
+                confusion_matrix_crop_plot.savefig(os.path.join(eval_output_dir, f'{key}_crop_confusion_matrix.png'))
+                confusion_matrix_state_plot.savefig(os.path.join(eval_output_dir, f'{key}_state_confusion_matrix.png'))
+                
+                confusion_matrices.append(confusion_matrix_crop_plot)
+                confusion_matrices.append(confusion_matrix_state_plot)
+                
+                # Add crop metrics to dict
+                crop_metrics_data['test_dataset'].append(key)
+                crop_metrics_data['accuracy'].append(f"{metrics['accuracy']['crop']:.6f}")
+                crop_metrics_data['loss'].append(f"{metrics['loss']['crop']:.6f}")
+                crop_metrics_data['precision'].append(f"{metrics['precision']['crop']:.6f}")
+                crop_metrics_data['recall'].append(f"{metrics['recall']['crop']:.6f}")
+                crop_metrics_data['f1_score'].append(f"{metrics['f1_score']['crop']:.6f}")
+                
+                # Add state metrics to dict
+                state_metrics_data['test_dataset'].append(key)
+                state_metrics_data['accuracy'].append(f"{metrics['accuracy']['state']:.6f}")
+                state_metrics_data['loss'].append(f"{metrics['loss']['state']:.6f}")
+                state_metrics_data['precision'].append(f"{metrics['precision']['state']:.6f}")
+                state_metrics_data['recall'].append(f"{metrics['recall']['state']:.6f}")
+                state_metrics_data['f1_score'].append(f"{metrics['f1_score']['state']:.6f}")
+                
+        # Convert to pandas dataframe
+        crop_metrics_df = pd.DataFrame(crop_metrics_data)
+        state_metrics_df = pd.DataFrame(state_metrics_data)
+        
+        # Save dataframes
+        crop_metrics_df.to_csv(os.path.join(eval_output_dir, 'crop_metrics.csv'), index=False)
+        state_metrics_df.to_csv(os.path.join(eval_output_dir, 'state_metrics.csv'), index=False)
+        
+        evaluation_report = {
+            'tcl_vs_vcl_graph': tcl_vs_vcl_graph,
+            'tca_vs_vca_graph': tca_vs_vca_graph,
+            'confusion_matrices': confusion_matrices,
+            'crop_metrics_df': crop_metrics_df,
+            'state_metrics_df': state_metrics_df
+        }
+        
+        return evaluation_report
+     
+    def _generate_confusion_matrix(self, confusion_matrix: list, title: str):
         """
+        Generates a confusion matrix plot.
 
-    def save_graphs(self):
-        """ Save the following graphs:
-        - ROC Curve
-        - AUC-ROC Curve
-        - Training / Validation loss over epochs
-        - Training / Validation accuracy over epochs
-        - Confusion Matrix heatmap
+        Args:
+            confusion_matrix (list): The confusion matrix to plot.
+            title (str): The title of the graph.
+
+        Returns:
+            plt: The matplotlib.pyplot object with the plot.
         """
+        
+        plt.figure(figsize=(10, 6))
+        plt.imshow(confusion_matrix, interpolation='nearest', cmap=plt.get_cmap('Blues'))
+        plt.title(title)
+        plt.colorbar()
+        plt.tight_layout()
+        
+        return plt
+        
+    def _generate_line_graph(self, x_values: list, y_values: dict, x_label: str, y_label: str, title: str):
+        """
+        Generates a line graph comparing multiple y-values (e.g., train and validation loss) over the given x-values.
+
+        Args:
+            x_values (list): The x-axis values (e.g., epochs).
+            y_values (dict): A dictionary where keys are labels (e.g., 'Train Loss', 'Validation Loss') and values are lists of y-axis values.
+            x_label (str): The label for the x-axis.
+            y_label (str): The label for the y-axis.
+            title (str): The title of the graph.
+
+        Returns:
+            plt: The matplotlib.pyplot object with the plot.
+        """
+        
+        plt.figure(figsize=(10, 6))
+        
+        for label, y in y_values.items():
+            plt.plot(x_values, y, label=label)
+        
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        plt.title(title)
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        
+        return plt
 
     def package(self):
         """ Package the pipeline into a object that can be returned via the API including;
@@ -768,20 +965,21 @@ class Pipeline():
 
             if capture_batches:
                 batch_progress.set_postfix(self._format_metrics(batch_metrics))
-
+   
         metrics['loss'] = {
-            'crop': loss_crop_total / len(dataloader),
-            'state': loss_state_total / len(dataloader),
-            'combined': loss_combined_total / len(dataloader)
+            'crop': loss_crop_total / len(dataloader) if len(dataloader) > 0 else 0,
+            'state': loss_state_total / len(dataloader) if len(dataloader) > 0 else 0,
+            'combined': loss_combined_total / len(dataloader) if len(dataloader) > 0 else 0
         }
+
 
         metrics['accuracy'] = {
             'crop':
-            correct_crop_total / count_total,
+            correct_crop_total / count_total if count_total > 0 else 0,
             'state':
-            correct_state_total / count_total,
+            correct_state_total / count_total if count_total > 0 else 0,
             'average': ((correct_crop_total / count_total) +
-                        (correct_state_total / count_total)) / 2
+                        (correct_state_total / count_total)) / 2 if count_total > 0 else 0
         }
 
         metrics['correct'] = {
@@ -1118,7 +1316,14 @@ def predict(config, image_path: str) -> dict:
 
 
 def test(config):
+    """ A method/function to run the test pipeline
 
+    Args:
+        config (dict): A dictionary of all the configuration settings from config file
+
+    Returns:
+        _type_: _description_
+    """
     logger.debug("Running the test pipeline")
 
     # Initialise the Pipeline
@@ -1126,6 +1331,9 @@ def test(config):
 
     # Test the model
     pipeline.test_model()
+    
+    # Save pipeline
+    pipeline.save_pipeline()
 
     # Package the pipeline for API return
     pipeline_package = pipeline.package()
@@ -1136,7 +1344,15 @@ def test(config):
 
 
 def predict_many(config, directory_path: str) -> Tuple[dict, dict]:
+    """ A method/function to run the prediction pipeline on multiple images
 
+    Args:
+        config (dict): Dict containing the configuration settings from the config file
+        directory_path (str): The path to the directory which contains the images to predict
+
+    Returns:
+        Tuple[dict, dict]: 
+    """
     def calculate_evaluation(crop_data: dict, state_data: dict,
                              total_images: int) -> dict:
         evaluation = {
@@ -1288,5 +1504,27 @@ def predict_many(config, directory_path: str) -> Tuple[dict, dict]:
             crop_data, state_data, len(image_files))
         logger.info(f"Completed predictions for {crop}___{state}")
 
-    pprint(evaluations)
+    
     return predictions, evaluations
+
+
+def evaluate(config):
+    """ A method/function to run the evaluation pipeline
+
+    Args:
+        config (dict): A dictionary of all the configuration settings from the config file
+
+    Returns:
+        _type_: _description_
+    """
+    logger.debug("Running the evaluation pipeline")
+
+    # Initialise the Pipeline
+    pipeline = Pipeline(config)
+    
+    # Evaluate the model
+    evaluation = pipeline.evaluate_model()
+    
+    
+    
+    

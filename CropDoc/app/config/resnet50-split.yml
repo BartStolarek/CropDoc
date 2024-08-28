@@ -2,8 +2,9 @@ name: ResNet50
 type: Classification
 version: 1.3
 python_file:
+dataset_name: PlantVillageDataset
 dataset_class: CropCCMTDataset  # Class names are; CropCCMTDataset, PlantVillageDataset
-dataset_dir: data/datasets/CCMT Dataset-Augmented  # Dataset directories include; CCMT Dataset-Augmented, 
+dataset_dir: data/datasets/plantvillage/custom  # Dataset directories include; CCMT Dataset-Augmented, plantvillage/convert_selection
 output_dir: data/output
 architecture:
   - type: ResNet
