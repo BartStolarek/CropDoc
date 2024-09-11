@@ -99,14 +99,14 @@ class PredictResource(Resource):
                     return [convert_to_serializable(item) for item in obj]
                 else:
                     return obj
-
+            
             serializable_results = convert_to_serializable(results)
 
             # Remove the file after processing
             os.remove(file_path)
 
             logger.info(
-                f'Responding with prediction: {serializable_results[:10]}...')
+                f'Responding with prediction: {results}...')
 
             return jsonify(serializable_results)
 

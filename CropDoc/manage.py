@@ -77,6 +77,24 @@ def pipeline(file, method, config, dataset, kwargs):
                              pipeline_config=config,
                              **kwargs_dict)
     logger.info(f"Pipeline command {'successful' if result else 'failed'}")
+    
+@cli.command('train')
+@click.option('--config',
+              '-c',
+              'config',
+              required=True,
+              help='Model configuration file for pipeline')
+@click.option('--kwargs',
+              '-k',
+              multiple=True,
+              help='Additional keyword arguments as key=value pairs')
+def train(config, kwargs):
+    """Runs the train pipeline script"""
+    from app.handler import handle_train
+    logger.debug("Pipeline command called")
+    kwargs_dict = dict(kv.split('=') for kv in kwargs)
+    result = handle_train(pipeline_config=config, **kwargs_dict)
+    logger.info(f"Pipeline train command {'successful' if result else 'failed'}")
 
 
 @cli.command('runserver')

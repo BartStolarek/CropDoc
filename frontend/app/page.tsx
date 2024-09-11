@@ -2,11 +2,13 @@
 
 import React, { useState } from 'react';
 import { Button } from "@nextui-org/button";
-import { FileUpload } from "@/components/file-upload"; 
+import { FileUpload } from "@/components/file-upload";
+import { Card, CardHeader, CardBody, CardFooter } from "@nextui-org/card";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [predictionResults, setPredictionResults] = useState(null);
 
   const handleFileUpload = (files: File[]) => {
     console.log("Files uploaded:", files);
@@ -38,6 +40,7 @@ export default function Home() {
 
       const data = await response.json();
       console.log('API response:', data);
+      setPredictionResults(data);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -66,6 +69,79 @@ export default function Home() {
       <Button color="primary" isLoading={isLoading} onClick={handlePredictClick}>
         Predict
       </Button>
+
+      <Card className="w-full max-w-3xl">
+        <CardHeader>
+          <h4 className="text-2xl font-bold">Prediction Results</h4>
+        </CardHeader>
+        <CardBody>
+          {predictionResults ? (
+            <div className="space-y-6">
+              {/* Crop Prediction */}
+              <div>
+                <h5 className="text-xl font-semibold mb-2">Crop Prediction</h5>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-lg">{predictionResults.crop.prediction}</span>
+                  <span className="bg-blue-500 text-white px-2 py-1 rounded-full text-sm">
+                    {(predictionResults.crop.probability * 100).toFixed(2)}%
+                  </span>
+                </div>
+                {Object.entries(predictionResults.crop.class_probabilities).map(([crop, prob]) => (
+                  <div key={crop} className="mb-2">
+                    <div className="flex justify-between mb-1">
+                      <span>{crop}</span>
+                      <span>{(prob * 100).toFixed(2)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div
+                        className="bg-blue-600 h-2.5 rounded-full"
+                        style={{ width: `${prob * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* State Prediction */}
+              <div>
+                <h5 className="text-xl font-semibold mb-2">State Prediction</h5>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-lg">{predictionResults.state.prediction}</span>
+                  <span className="bg-green-500 text-white px-2 py-1 rounded-full text-sm">
+                    {(predictionResults.state.probability * 100).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {Object.entries(predictionResults.state.class_probabilities)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([state, prob]) => (
+                      <div key={state} className="mb-2">
+                        <div className="flex justify-between mb-1">
+                          <span>{state}</span>
+                          <span>{(prob * 100).toFixed(2)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div
+                            className="bg-green-600 h-2.5 rounded-full"
+                            style={{ width: `${prob * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p>No prediction results yet. Upload an image and click "Predict" to see results.</p>
+          )}
+        </CardBody>
+        <CardFooter>
+          <Button color="primary" isLoading={isLoading} onClick={handlePredictClick}>
+            {predictionResults ? "Predict Again" : "Predict"}
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
