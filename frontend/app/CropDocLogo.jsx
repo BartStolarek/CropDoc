@@ -1,15 +1,35 @@
 "use client";
 
-import React from "react";
-import { useTheme } from "next-themes"; // Import from next-themes
+import React, { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 
 const CropDocLogo = () => {
-  const { theme } = useTheme();
-  const isDark = theme === "dark"; // Check if the theme is dark
+  const { theme, systemTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center">
+        <span className="text-4xl font-bold -top-3 relative">
+          Crop
+          <span className="absolute -bottom-4 left-0 text-4xl text-green-700">
+            Doc
+          </span>
+        </span>
+      </div>
+    );
+  }
+
+  const currentTheme = theme === "system" ? systemTheme : theme;
+  const isDark = currentTheme === "dark";
 
   return (
     <div className="flex items-center">
-      <span className={`text-4xl font-bold -top-3 relative`}>
+      <span className="text-4xl font-bold -top-3 relative">
         Crop
         <span
           className={`absolute -bottom-4 left-0 text-4xl ${

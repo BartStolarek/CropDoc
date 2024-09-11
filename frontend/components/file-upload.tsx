@@ -1,6 +1,6 @@
 // File upload component credit to https://ui.aceternity.com/components/file-upload
 
-import React, { useRef, useState, ChangeEvent, HTMLInputElement } from "react";
+import React, { useRef, useState, ChangeEvent } from "react";
 import { motion } from "framer-motion";
 import { IconUpload } from "@tabler/icons-react";
 import { useDropzone } from "react-dropzone";
@@ -34,9 +34,11 @@ export const FileUpload = ({
   onChange?: (files: File[]) => void;
 }) => {
   const [files, setFiles] = useState<File[]>([]);
+  // eslint-disable-next-line no-undef
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (
+    // eslint-disable-next-line no-undef
     newFiles: File[] | ChangeEvent<HTMLInputElement>,
   ) => {
     if (newFiles instanceof Array) {

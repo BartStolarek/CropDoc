@@ -7,16 +7,36 @@ import { Card, CardHeader, CardBody, CardFooter } from "@nextui-org/card";
 import { FileUpload } from "@/components/file-upload";
 import config from "@/config/config";
 
+// First, let's define interfaces for our prediction results
+interface ClassProbabilities {
+  [key: string]: number;
+}
+
+interface Prediction {
+  prediction: string;
+  probability: number;
+  class_probabilities: ClassProbabilities;
+}
+
+interface PredictionResults {
+  crop: Prediction;
+  state: Prediction;
+}
+
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [predictionResults, setPredictionResults] = useState(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [predictionResults, setPredictionResults] = 
+  useState<PredictionResults | null>(null);
+
 
   const handleFileUpload = (files: File[]) => {
     /* eslint-disable no-console */
     console.log("Files uploaded:", files);
     if (files.length > 0) {
       setUploadedFile(files[0]); // Assuming single file upload
+    } else {
+      setUploadedFile(null); // Clear the file if no file is uploaded
     }
   };
 
@@ -47,7 +67,7 @@ export default function Home() {
       const data = await response.json();
 
       console.log("API response:", data);
-      setPredictionResults(data);
+      setPredictionResults(data as PredictionResults);
     } catch (error) {
       console.error("Error:", error);
     } finally {
