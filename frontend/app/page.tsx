@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
+
 import { Button } from "@nextui-org/button";
-import { FileUpload } from "@/components/file-upload";
 import { Card, CardHeader, CardBody, CardFooter } from "@nextui-org/card";
+
+import { FileUpload } from "@/components/file-upload";
 import config from "@/config/config";
 
 export default function Home() {
