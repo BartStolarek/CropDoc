@@ -6,7 +6,10 @@
 		"dev": "next dev --turbo",
 		"build": "next build",
 		"start": "next start",
-		"lint": "eslint . --ext .ts,.tsx -c .eslintrc.json --fix"
+		"lint": "eslint . --ext .ts,.tsx -c .eslintrc.json --fix",
+		"dev:local": "env-cmd -f .env.development next dev --turbo",
+		"build:prod": "env-cmd -f .env.production next build",
+		"start:prod": "env-cmd -f .env.production next start"
 	},
 	"dependencies": {
 		"@nextui-org/button": "2.0.37",
@@ -41,6 +44,7 @@
 		"@typescript-eslint/eslint-plugin": "7.2.0",
 		"@typescript-eslint/parser": "7.2.0",
 		"autoprefixer": "10.4.19",
+		"env-cmd": "^10.1.0",
 		"eslint": "^8.57.0",
 		"eslint-config-next": "14.2.1",
 		"eslint-config-prettier": "^8.2.0",

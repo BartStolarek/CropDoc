@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Button } from "@nextui-org/button";
 import { FileUpload } from "@/components/file-upload";
 import { Card, CardHeader, CardBody, CardFooter } from "@nextui-org/card";
+import config from "@/config/config";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
@@ -29,7 +30,7 @@ export default function Home() {
 
     try {
       // Call the API on localhost:5000
-      const response = await fetch('http://localhost:5000/pipeline/predict', {
+      const response = await fetch(`${config.apiUrl}/pipeline/predict`, {
         method: 'POST',
         body: formData,
       });

@@ -1,0 +1,35 @@
+# Use an official Python runtime as the base image
+FROM python:3.10.11-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the requirements file into the container
+COPY CropDoc/requirements.txt .
+
+# Install PyTorch separately
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+
+# Install the Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application code
+COPY CropDoc/ .
+
+# Create config.env file
+RUN echo "APP_NAME='CropDoc'" > app/config.env \
+    && echo "SECRET_KEY='secretkey'" >> app/config.env \
+    && echo "FLASK_APP=manage.py" >> app/config.env \
+    && echo "FLASK_ENV=development" >> app/config.env \
+    && echo "LOGGING_LEVEL=DEBUG" >> app/config.env
+
+# Expose the port the app runs on
+EXPOSE 5000
+
+# Command to run the application
+CMD ["python", "manage.py", "runserver", "--host=0.0.0.0"]
