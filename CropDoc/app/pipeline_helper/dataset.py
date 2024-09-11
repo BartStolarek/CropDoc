@@ -163,19 +163,12 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
 
 class CropCCMTDataset(BaseDataset):
 
-    def __init__(self, split='train', **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        self.split = split
-
-        splits = ['train', 'test']
-        if split not in splits:
-            raise ValueError(
-                f"Invalid split: {split}. Must be one of {splits}")
 
     def walk_through_root_append_images_and_labels(self):
         logger.debug(
-            f"Walking through root path: {self.root} to obtain images and labels"
+            f"Walking through root path: {self.root} to obtain images and labels for split {self.split}"
         )
         # Walk through root path
 
@@ -184,36 +177,36 @@ class CropCCMTDataset(BaseDataset):
 
         for root, directories, files in os.walk(self.root):
             for file in files:
+                if file.lower().endswith('.jpg') or file.lower().endswith('jpeg'):
+                    try:
+                        crop_label, state_label = self.handle_file(file)
+                    except Exception as e:
+                        logger.error(
+                            f"There was an issue with handling the file, make sure you have the right dataset class and dataset root directory set in the config file. {e}"
+                        )
+                        raise Exception(e)
+                 
+                    if crop_label is None or state_label is None:
+                        continue
 
-                try:
-                    crop_label, state_label = self.handle_file(file)
-                except Exception as e:
-                    logger.error(
-                        f"There was an issue with handling the file, make sure you have the right dataset class and dataset root directory set in the config file. {e}"
-                    )
-                    raise Exception(e)
+                    # Append image path and labels
+                    images.append(os.path.join(root, (os.path.basename(file))))
+                    labels.append((crop_label.lower(), state_label.lower()))
 
-                if crop_label is None or state_label is None:
-                    continue
+                    if crop_label not in self.data_map['crop']:
+                        self.data_map['crop'][crop_label] = 1
+                    else:
+                        self.data_map['crop'][crop_label] += 1
 
-                # Append image path and labels
-                images.append(os.path.join(root, (os.path.basename(file))))
-                labels.append((crop_label.lower(), state_label.lower()))
-
-                if crop_label not in self.data_map['crop']:
-                    self.data_map['crop'][crop_label] = 1
-                else:
-                    self.data_map['crop'][crop_label] += 1
-
-                if state_label not in self.data_map['state']:
-                    self.data_map['state'][state_label] = 1
-                else:
-                    self.data_map['state'][state_label] += 1
+                    if state_label not in self.data_map['state']:
+                        self.data_map['state'][state_label] = 1
+                    else:
+                        self.data_map['state'][state_label] += 1
 
         self.images = np.array(images, dtype=object)
         self.labels = np.array(labels, dtype=object)
 
-        logger.info('Finished walking through root path')
+        logger.info(f'Finished walking through root path, found {len(self.images)} images.')
 
     def handle_file(self, file):
         file_name = os.path.basename(file)
@@ -227,7 +220,7 @@ class CropCCMTDataset(BaseDataset):
 
         # Split file name into classes and split
         classes_and_split = file_name.split('_')
-
+        
         # Obtain crop label and split directory
         crop_label = classes_and_split[0]
         split_directory = classes_and_split[1]
@@ -238,11 +231,12 @@ class CropCCMTDataset(BaseDataset):
 
         # Check if required split matches
         if split_directory != self.split:
+            #logger.warning(f'Split directory: {split_directory} does not match required split: {self.split}')
             return None, None
 
         # Obtain state label
         state_label = classes_and_split[2]
-
+        
         # Change healthy state labels to include crop label in them to differentiate
         if state_label == 'healthy':
             state_label = crop_label + '-healthy'
