@@ -95,6 +95,86 @@ def train(config, kwargs):
     kwargs_dict = dict(kv.split('=') for kv in kwargs)
     result = handle_train(pipeline_config=config, **kwargs_dict)
     logger.info(f"Pipeline train command {'successful' if result else 'failed'}")
+    
+@cli.command('predict')
+@click.option('--config',
+              '-c',
+              'config',
+              required=True,
+              help='Model configuration file for pipeline')
+@click.option('--image',
+              '-i',
+              'image',
+              required=True,
+              help='Image path to run the pipeline on')
+@click.option('--kwargs',
+              '-k',
+              multiple=True,
+              help='Additional keyword arguments as key=value pairs')
+def predict(config, image, kwargs):
+    """Runs the predict pipeline script"""
+    from app.handler import handle_predict
+    logger.debug("Pipeline command called")
+    kwargs_dict = dict(kv.split('=') for kv in kwargs)
+    result = handle_predict(pipeline_config=config, image_path=image, **kwargs_dict)
+    logger.info(f"Pipeline predict command {'successful' if result else 'failed'}")
+    
+@cli.command('test')
+@click.option('--config',
+              '-c',
+              'config',
+              required=True,
+              help='Model configuration file for pipeline')
+@click.option('--kwargs',
+              '-k',
+              multiple=True,
+              help='Additional keyword arguments as key=value pairs')
+def test(config, kwargs):
+    """Runs the test pipeline script"""
+    from app.handler import handle_test
+    logger.debug("Pipeline command called")
+    kwargs_dict = dict(kv.split('=') for kv in kwargs)
+    result = handle_test(pipeline_config=config, **kwargs_dict)
+    logger.info(f"Pipeline test command {'successful' if result else 'failed'}")
+
+ 
+@cli.command('predict_many')
+@click.option('--config',
+              '-c',
+              'config',
+              required=True,
+              help='Model configuration file for pipeline')
+@click.option('--kwargs',
+              '-k',
+              multiple=True,
+              help='Additional keyword arguments as key=value pairs')
+def predict_many(config, kwargs):
+    """Runs the predict_many pipeline script"""
+    from app.handler import handle_predict_many
+    logger.debug("Pipeline command called")
+    kwargs_dict = dict(kv.split('=') for kv in kwargs)
+    result = handle_predict_many(pipeline_config=config, **kwargs_dict)
+    logger.info(f"Pipeline predict_many command {'successful' if result else 'failed'}")
+
+
+@cli.command('evaluate')
+@click.option('--config',
+              '-c',
+              'config',
+              required=True,
+              help='Model configuration file for pipeline')
+@click.option('--kwargs',
+              '-k',
+              multiple=True,
+              help='Additional keyword arguments as key=value pairs')
+def evaluate(config, kwargs):
+    """Runs the evaluate pipeline script"""
+    from app.handler import handle_evaluate
+    logger.debug("Pipeline command called")
+    kwargs_dict = dict(kv.split('=') for kv in kwargs)
+    result = handle_evaluate(pipeline_config=config, **kwargs_dict)
+    logger.info(f"Pipeline evaluate command {'successful' if result else 'failed'}")
+
 
 
 @cli.command('runserver')

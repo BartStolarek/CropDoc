@@ -7,6 +7,7 @@ from typing import Tuple
 import os
 import tqdm
 import shutil
+from collections import Counter
 
 from app.utility.file import get_file_method, load_yaml_file_as_dict
 from app.pipeline.pipeline import Pipeline
@@ -218,7 +219,7 @@ def handle_predict_many(config, directory_path: str) -> Tuple[dict, dict]:
             state = crop + '-healthy'
 
         # Get all image files in the directory
-        #image_files = [f for f in os.listdir(d_path) if os.path.isfile(os.path.join(d_path, f))]
+        #  image_files = [f for f in os.listdir(d_path) if os.path.isfile(os.path.join(d_path, f))]
         image_files = []
         count = 0
         for f in os.listdir(d_path):
@@ -264,7 +265,7 @@ def handle_predict_many(config, directory_path: str) -> Tuple[dict, dict]:
         for image_file in prediction_progress:
 
             image_path = os.path.join(d_path, image_file)
-            prediction = predict(config=config, image_path=image_path)
+            prediction = handle_predict(config=config, image_path=image_path)
 
             # Garbage collect
             gc.collect()
@@ -303,7 +304,6 @@ def handle_predict_many(config, directory_path: str) -> Tuple[dict, dict]:
             crop_data, state_data, len(image_files))
         logger.info(f"Completed predictions for {crop}___{state}")
 
-    
     return predictions, evaluations
 
 
