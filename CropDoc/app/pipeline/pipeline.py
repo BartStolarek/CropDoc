@@ -144,7 +144,7 @@ class Pipeline():
             f'{self.pipeline_name}-{self.pipeline_version}.pth'
         )  # Get the path of the final pipeline
         pipeline = torch.load(pipeline_path,
-                              weights_only=False)  # Load the pipeline
+                              weights_only=False, map_location=torch.device('cpu'))  # Load the pipeline
 
         
         self.performance_metrics = pipeline['performance_metrics']
@@ -161,7 +161,7 @@ class Pipeline():
             # Load the trained model weights from the pipeline into the new model.
             self.model.load_state_dict(
                 torch.load(pipeline_path,
-                           weights_only=False)['model_state_dict'])
+                           weights_only=False, map_location=torch.device('cpu'))['model_state_dict'])
         except RuntimeError as e:
             logger.error(
                 f"Error loading model, shape is wrong. Potential issues is that the config file's data reduce value is different from what was trained on. {e}"

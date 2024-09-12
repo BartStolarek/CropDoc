@@ -25,4 +25,4 @@ RUN pip install --no-cache-dir flask[async]
 EXPOSE 5000
 
 # Command to run the application with hot reloading
-CMD ["flask", "run", "--host", "0.0.0.0", "--port", "5000", "--reload"]
+CMD ["python", "manage.py", "runserver", "--reload"]

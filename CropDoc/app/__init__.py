@@ -23,10 +23,11 @@ def create_app(config=AppConfig):
     app.config.from_object(config)
 
     allowed_origins = os.getenv('ALLOWED_ORIGINS',
-                                'http://localhost:3000').split(',')
+                                'http://localhost:3000,http://frontend:3000').split(',')
     CORS(app,
          supports_credentials=True,
          origins=allowed_origins,
+         resources={r"/*": {"origins": "*"}},
          methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
          allow_headers=[
              'Content-Type', 'Authorization', 'ngrok-skip-browser-warning'
@@ -53,6 +54,11 @@ def create_app(config=AppConfig):
             "Data folder not found. Creating 'data' (not tracked on git) folder."
         )
         (parent_path / 'data').mkdir()
+        
+    # Create the home page to just be a blank page that says 'Backend Server is running'
+    @app.route('/')
+    def home():
+        return 'Backend Server is running'
 
     return app
 

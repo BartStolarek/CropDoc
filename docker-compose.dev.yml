@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev.backend
+    
     ports:
       - "5000:5000"
     environment:
@@ -11,9 +12,12 @@ services:
       - FLASK_APP=manage.py
       - FLASK_ENV=development
       - LOGGING_LEVEL=DEBUG
+      - ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000
     volumes:
       - ./CropDoc:/CropDoc
-    command: flask run --host 0.0.0.0 --port 5000 --reload
+    networks:
+      - app-network
+    command: python manage.py runserver --reload
 
   frontend:
     build:
@@ -22,10 +26,18 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:5000
-    depends_on:
-      - backend
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
     volumes:
       - ./frontend:/frontend
       - /frontend/node_modules
+    depends_on:
+      - backend
+    networks:
+      - app-network
     command: npm run dev
+
+networks:
+  app-network:
+    name: cosc320-groupd_app-network
+    external: true
+    driver: bridge

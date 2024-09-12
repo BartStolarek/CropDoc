@@ -42,39 +42,51 @@ export default function Home() {
 
   const handlePredictClick = async () => {
     if (!uploadedFile) {
-      /* eslint-disable no-console */
       console.error("No file uploaded");
-      // eslint-disable-next-line padding-line-between-statements
       return;
     }
-
+  
     setIsLoading(true);
     const formData = new FormData();
-    // eslint-disable-next-line padding-line-between-statements
     formData.append("file", uploadedFile);
-
+  
+    const predict_api = `${process.env.NEXT_PUBLIC_API_URL}/pipeline/predict`;
+    console.log("Attempting to call API at:", predict_api);
+  
     try {
-      // Call the API on localhost:5000
-      const response = await fetch(`${config.apiUrl}/pipeline/predict`, {
+      console.log("API call started");
+      const response = await fetch(predict_api, {
         method: "POST",
         body: formData,
       });
-
+  
+      console.log("API response status:", response.status);
+      console.log("API response headers:", Object.fromEntries(response.headers.entries()));
+  
       if (!response.ok) {
-        throw new Error("Network response was not ok");
+        const errorBody = await response.text();
+        console.error("API error response:", errorBody);
+        throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
       }
-
+  
       const data = await response.json();
-
-      console.log("API response:", data);
+      console.log("API response data:", data);
       setPredictionResults(data as PredictionResults);
     } catch (error) {
-      console.error("Error:", error);
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.error("Network error: Unable to reach the API. This might be due to CORS issues or the API being unreachable.");
+      } else if (error instanceof Error) {
+        console.error("Error during API call:", error.message);
+      } else {
+        console.error("An unknown error occurred:", error);
+      }
+      // Optionally set an error state here to display to the user
+      // setError("An error occurred while processing your request. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
-
+  
   return (
     <div className="flex flex-col items-center justify-center min-h-screen space-y-32">
       <div className="flex flex-col items-center justify-center">

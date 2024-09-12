@@ -190,13 +190,18 @@ def evaluate(config, kwargs):
               "port",
               default='5000',
               help='Port to run the server on')
-def runserver(debug, host, port):
+@click.option('--reload',
+              "reload",
+              is_flag=True,
+              help='Reload the server on file changes')
+def runserver(debug, host, port, reload):
     if AppConfig.FLASK_ENV == 'development':
         logger.info(f"Running development server at {host}:{port}")
         os.environ['FLASK_RUN_HOST'] = host
         os.environ['FLASK_RUN_PORT'] = port
         os.environ['FLASK_ENV'] = AppConfig.FLASK_ENV
         os.environ['FLASK_DEBUG'] = '1' if debug else '0'
+        os.environ['FLASK_RUN_RELOAD'] = '1' if reload else '0'
         cli(['run'])
     elif AppConfig.FLASK_ENV == 'production':
         logger.error(
