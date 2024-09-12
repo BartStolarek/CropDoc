@@ -1,14 +1,15 @@
 # Libraries
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader, random_split
 #from data import DatasetManager, TransformerManager
+import Xception_class
 from Xception_class import xception
-# import datetime
 from datetime import datetime
-# from loguru import logger
+#from loguru import logger
 
 # Define data transformations (resize, normalize, etc.)
 transform = transforms.Compose([
@@ -18,8 +19,13 @@ transform = transforms.Compose([
 ])
 
 # Load the entire training/validation dataset
-train_valid_dir = '/scratch/Az/Dataset/CCMT-Dataset-Augmented/train_Data/'
-train_valid_dataset = ImageFolder(root=train_valid_dir, transform=transform)
+root_dir = '/scratch/Az/Dataset/CCMT-Dataset-Augmented/train_Data/'
+train_valid_dataset = ImageFolder(root=root_dir, transform=transform)
+#train_valid_dataset = DatasetManager(root_dir, transform=transforms)
+
+# Definitions
+NUM_EPOCHS = 1
+NUM_CLASSES = 4  # Need to redo the head
 
 # Calculate split sizes for 90% train and 10% validation
 train_size = int(0.9 * len(train_valid_dataset))
@@ -33,7 +39,7 @@ train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False)
 
 # Create model
-model = xception(pretrained=True, num_classes=4)
+model = xception(pretrained=True, num_classes=NUM_CLASSES)
 
 # Modify the final fully connected layer to match the number of classes
 # num_classes = 4
@@ -43,8 +49,12 @@ model = xception(pretrained=True, num_classes=4)
 print(f"Number of classes detected: {len(train_valid_dataset.classes)}")
 print(f"Classes: {train_valid_dataset.classes}")
 
-# Move to GPU if available
-model = model.to('cuda' if torch.cuda.is_available() else 'cpu')
+# Move to GPU if available - to all possible GPUs available XD
+device_ids = [i for i in range(torch.cuda.device_count())]
+xcpt = Xception_class.xception(True, NUM_CLASSES)
+model = nn.DataParallel(xcpt, device_ids=device_ids)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model.to(device)
 
 # Test the model with a random input tensor
 # input_tensor = torch.randn(1, 3, 299, 299)  # Batch size 1, 3 channels (RGB), 299x299 image === Need to check what our image sizes are btw
@@ -53,14 +63,14 @@ model = model.to('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 # Loss function and optimizer
-criterion = torch.nn.CrossEntropyLoss()
+criterion_crop = torch.nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training Loop ==========================================
 training_start_time = datetime.now()
 print('Starting Training :D at ' + str(training_start_time))
-num_epochs = 100
-for epoch in range(num_epochs):
+# num_epochs = 1
+for epoch in range(NUM_EPOCHS):
     model.train()
     running_loss = 0.0
     correct = 0
@@ -79,7 +89,7 @@ for epoch in range(num_epochs):
         # print(f"Yo Outputs #1 shape: {outputs.shape}")
 
         # Compute the loss
-        loss = criterion(outputs, labels)
+        loss = criterion_crop(outputs, labels)
                
         # Backwards pass: compute gradients
         loss.backward()
@@ -98,10 +108,11 @@ for epoch in range(num_epochs):
     # Calculate the average loss and accuracy for this epoch
     epoch_loss = running_loss / len(train_loader)
     accuracy = 100 * correct / total
-    print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.2f}%")
+    print(f"Epoch [{epoch + 1}/{NUM_EPOCHS}], Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.2f}%")
     
     training_finish_time = datetime.now()
-    print(f'Total Training Duration: ({training_finish_time} - {training_start_time})')
+    training_duration = training_finish_time - training_start_time
+    print(f'Total Training Duration: str({training_duration})')
 
     # Validation =================================
     validation_start_time = datetime.now()
@@ -118,7 +129,7 @@ for epoch in range(num_epochs):
             inputs, labels = inputs.to('cuda' if torch.cuda.is_available() else 'cpu'), labels.to('cuda' if torch.cuda.is_available() else 'cpu')
 
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = criterion_crop(outputs, labels)
 
             val_loss += loss.item()
 
