@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch
 
 __all__ = ['xception']
-NUM_CROPS = 4
+#NUM_CROPS = 4
 
 
 class SeparableConv2d(nn.Module):
@@ -77,7 +77,7 @@ class Block(nn.Module):
 
 class Xception(nn.Module):
 
-    def __init__(self, num_classes=NUM_CROPS):
+    def __init__(self, num_classes):
         """ Constructor
         Args:
             num_classes: number of classes
@@ -167,8 +167,9 @@ class Xception(nn.Module):
 
 
 # Construct Xception
-def xception(pretrained=True, num_classes=NUM_CROPS, **kwargs):
+def xception(num_classes, **kwargs):
     model = Xception(num_classes=num_classes, **kwargs)
+    pretrained = True
     if pretrained:
         # Load the pretrained model weights
         state_dict = torch.load('xception-43020ad28.pth')
