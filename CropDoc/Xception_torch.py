@@ -57,7 +57,7 @@ logger.info(f"Classes: {train_valid_dataset.classes}")
 
 # Move to GPU if available - to all possible GPUs available XD
 device_ids = [i for i in range(torch.cuda.device_count())]
-xcpt = Xception_class.xception(True, NUM_CLASSES)
+xcpt = Xception_class.xception(NUM_CLASSES)
 model = nn.DataParallel(xcpt, device_ids=device_ids)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device)
