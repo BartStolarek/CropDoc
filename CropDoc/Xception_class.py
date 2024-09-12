@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch
 
 __all__ = ['xception']
-NUM_CROPS = 5
+NUM_CROPS = 4
 
 
 class SeparableConv2d(nn.Module):
@@ -171,7 +171,7 @@ def xception(pretrained=True, num_classes=NUM_CROPS, **kwargs):
     model = Xception(num_classes=num_classes, **kwargs)
     if pretrained:
         # Load the pretrained model weights
-        state_dict = torch.load('P:/OneDrive/Studies/University of New England/COSC592 Technology Project/CropDoc/xception-43020ad28.pth')
+        state_dict = torch.load('xception-43020ad28.pth')
 
         # Remove the fully connected layer's weights from the state_dict to avoid the size mismatch error
         del state_dict['fc.weight']

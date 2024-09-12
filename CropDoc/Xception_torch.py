@@ -4,6 +4,7 @@ import torch.optim as optim
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader, random_split
+#from data import DatasetManager, TransformerManager
 from Xception_class import xception
 # import datetime
 from datetime import datetime
@@ -17,7 +18,7 @@ transform = transforms.Compose([
 ])
 
 # Load the entire training/validation dataset
-train_valid_dir = 'P:/OneDrive/Studies/University of New England/COSC592 Technology Project/CropDoc/Dataset/CCMT Dataset-Augmented/Cashew/train_set'
+train_valid_dir = '/scratch/Az/Dataset/CCMT-Dataset-Augmented/train_Data/'
 train_valid_dataset = ImageFolder(root=train_valid_dir, transform=transform)
 
 # Calculate split sizes for 90% train and 10% validation
@@ -32,7 +33,7 @@ train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False)
 
 # Create model
-model = xception(pretrained=True, num_classes=5)
+model = xception(pretrained=True, num_classes=4)
 
 # Modify the final fully connected layer to match the number of classes
 # num_classes = 4
@@ -58,7 +59,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 # Training Loop ==========================================
 training_start_time = datetime.now()
 print('Starting Training :D at ' + str(training_start_time))
-num_epochs = 2
+num_epochs = 100
 for epoch in range(num_epochs):
     model.train()
     running_loss = 0.0
@@ -129,10 +130,12 @@ for epoch in range(num_epochs):
     val_accuracy = 100 * val_correct / val_total
     print(f"Validation Loss: {val_epoch_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
     validation_finish_time = datetime.now()
-    print(f'Total Validation Duration: ({validation_finish_time} - {validation_start_time})')
-    print(f'Total Duration: ({validation_finish_time} - {training_start_time})')
+    print('Finishing Validation :D at ' + str(validation_finish_time))
+    # print(f'Total Validation Duration: ({validation_finish_time} - {validation_start_time})')  # Fix this peanut
+    #print(f'Total Duration: ({validation_finish_time} - {training_start_time})')
 
 # Save the trained model
-timestamp = datetime.strptime(str(validation_finish_time), "%Y-%m-%d %H:%M:%S")
-filestamp = timestamp.strftime("%Y-%m-%d_%H%M")
-torch.save(model.state_dict(), f'xception_trained_model_{filestamp}.pth')
+#timestamp = datetime.strptime(str(validation_finish_time), "%Y-%m-%d %H:%M:%S")
+#filestamp = timestamp.strftime("%Y-%m-%d_%H%M")
+#torch.save(model.state_dict(), f'xception_trained_model_{filestamp}.pth')
+torch.save(model.state_dict(), 'xception_trained_model_100EpochsCashew.pth')
