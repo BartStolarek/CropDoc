@@ -4,7 +4,6 @@ import shutil
 import time
 import warnings
 from collections import Counter
-from pprint import pprint
 from typing import Tuple
 import pandas as pd
 
@@ -20,7 +19,7 @@ from app.pipeline_helper.dataloader import TransformDataLoader
 from app.pipeline_helper.dataset import (BaseDataset, CropCCMTDataset,
                                          PlantVillageDataset)
 from app.pipeline_helper.model import MultiHeadResNetModel
-from app.pipeline_helper.transformer import TransformerManager
+from CropDoc.app.pipeline_helper.transformermanager import TransformerManager
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore",
@@ -33,7 +32,7 @@ class Pipeline():
     def __init__(self, config: dict):
 
         # Check if the config is valid
-        self._validate_config(config)
+        self.pipeline_name = config['pipeline']
 
         # Split out the config for easier interpretation, and get some pipeline metadata
         self.pipeline_config = config
@@ -1524,7 +1523,3 @@ def evaluate(config):
     
     # Evaluate the model
     evaluation = pipeline.evaluate_model()
-    
-    
-    
-    

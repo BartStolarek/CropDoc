@@ -9,81 +9,127 @@ from PIL import Image
 
 
 class BaseDataset(torch.utils.data.Dataset, ABC):
+    def __init__(self, root: str, existing_structure: dict = None, test_split: float = None):
+        self.root = root
+        
+        # If existing structure was provided, use that structure
+        if existing_structure is not None:
+            self.train_images = existing_structure['train_images']
+            self.train_labels = existing_structure['train_labels']
+            self.test_images = existing_structure['test_images']
+            self.test_labels = existing_structure['test_labels']
+            self.crops = existing_structure['crops']
+            self.states = existing_structure['states']
+            self.train_map = existing_structure['train_map']
+            self.test_map = existing_structure['test_map']
+        else:
+            train_images, train_labels, test_images, test_labels = self.structure_data(test_split)
+            
+            # Check if train and test images and labels are numpy arrays
+            if not isinstance(train_images, np.ndarray) or not isinstance(test_images, np.ndarray) or not isinstance(train_labels, np.ndarray) or not isinstance(test_labels, np.ndarray):
+                raise ValueError("structure_data() must numpy arrays for train images, test images, train labels, and test labels")
+            else:
+                self.train_images = train_images
+                self.test_images = test_images
+                
+                # Check if train and test labels are tuples of crop and state labels
+                if len(train_labels[0]) != 2 or len(test_labels[0]) != 2:
+                    print(len(test_labels[0]))
+                    raise ValueError(f"structure_data() must return numpy array for train and test labels, which are tuples of crop and state labels, currently returning {train_labels[0]}")
+                else:
+                    self.train_labels = train_labels
+                    self.test_labels = test_labels
+            
+            # Generate the unique index maps for crops and states if not provided, same across both train and test splits
+            self.crops = self.get_crops() 
+            self.states = self.get_states()
+            
+            # Generate the count maps for train and test splits
+            self.train_map = self.generate_map('train')
+            self.test_map = self.generate_map('test')
+        
+    def generate_map(self, split) -> dict:
+        """ Method to generate a map of the dataset which shows the count
+        of each crop class and state class in the dataset
 
-    def __init__(self,
-                 dataset_path,
-                 split='train',
-                 crop_index_map: dict = None,
-                 state_index_map: dict = None):
+        Returns:
+            dict: _description_
+        """
+        if split == 'train':
+            labels = self.train_labels
+        elif split == 'test':
+            labels = self.test_labels
+        
+        data_map = {
+            'crop': {},
+            'state': {}
+        }
+        for crop, state in labels:
+            if crop not in data_map['crop']:
+                data_map['crop'][crop] = 1
+            else:
+                data_map['crop'][crop] += 1
+                
+            if state not in data_map['state']:
+                data_map['state'][state] = 1
+            else:
+                data_map['state'][state] += 1
+        return data_map
+                
+    def get_crops(self) -> np.ndarray:
+        """ Method to get a unique numpy array (list) of crops from the dataset
 
-        self.root = dataset_path
-        self.split = split
+        Returns:
+            np.ndarray: A numpy array of unique crops
+        """
+        train_crops = np.unique(self.train_labels[:, 0])
+        test_crops = np.unique(self.test_labels[:, 0])
+        
+        # Check if the train and test crops have exact same crops
+        if not np.array_equal(train_crops, test_crops):
+            raise ValueError(f"Train and test crops must be the same, there are different crops in the train and test splits: \nTrain Crops:\n{train_crops}, \nTest Crops:\n{test_crops}")
+        
+        logger.info(f'Generated new crop index: {train_crops}')
+        for crop in train_crops:
+            print(crop)
+        return train_crops
 
-        self.data_map = {'crop': {}, 'state': {}}
+    def get_states(self) -> np.ndarray:
+        """ Method to get a unique numpy array (list) of states from the dataset
 
-        self.images = np.empty(0, dtype=object)
-        self.labels = np.empty(
-            (0, 2), dtype=int)  # Two columns for crop and state labels
-
-        splits = ['train', 'test']
-        if split not in splits:
-            raise ValueError(
-                f"Invalid split: {split}. Must be one of {splits}")
-
-        self.walk_through_root_append_images_and_labels()
-
-        self.crops = self._get_unique_crops(crop_index_map)
-        self.states = self._get_unique_states(state_index_map)
-        self.crop_index_map = self._generate_index_map(self.crops)
-        self.state_index_map = self._generate_index_map(self.states)
-
-        self._fix_state_labels()
-        logger.debug(f"Crops in dataset: {self.crops}")
-        logger.debug(f"States in dataset: {self.states}")
-
+        Returns:
+            np.ndarray: A numpy array of unique states
+        """
+        train_states = np.unique(self.train_labels[:, 1])
+        test_states = np.unique(self.test_labels[:, 1])
+        
+        # Check if the train and test crops have exact same crops
+        if not np.array_equal(train_states, test_states):
+            raise ValueError(f"Train and test crops must be the same, there are different crops in the train and test splits: \nTrain Crops:\n{train_states}, \nTest Crops:\n{test_states}")
+        
+        logger.info(f'Generated new state index: {train_states}')
+        for state in train_states:
+            print(state)
+        return train_states
+          
     @abstractmethod
-    def walk_through_root_append_images_and_labels(self):
+    def structure_data(self, test_split: float = None):
+        """ Method that returns the following:
+        - A numpy array of image paths
+        - A numpy array of tuples of crop and state labels (cleaned), where index corresponds to image path
+        - A numpy array of splits (train, val, test) for each image path
+        """
         pass
-
-    def _generate_index_map(self, class_list):
-        index_map = {i: class_name for i, class_name in enumerate(class_list)}
-        return index_map
-
-    def _get_unique_crops(self, index_map=None):
-        if not index_map:
-            crops = []
-            for crop, _ in self.labels:
-                if crop not in crops:
-                    crops.append(crop)
-            crops = sorted(list(set(crops)))
-            return crops
-        else:
-            crops = []
-            for i in range(len(index_map)):
-                crops.append(index_map[i])
-            return crops
-
-    def _get_unique_states(self, index_map=None):
-        if not index_map:
-            states = []
-            for _, state in self.labels:
-                if state not in states:
-                    states.append(state)
-            states = sorted(list(set(states)))
-            return states
-        else:
-            states = []
-            for i in range(len(index_map)):
-                states.append(index_map[i])
-            return states
-
-    def get_unique_crop_count(self):
-        return len(self.crops)
-
-    def get_unique_state_count(self):
-        return len(self.states)
-
+        
     def __getitem__(self, idx):
+        """_summary_
+
+        Args:
+            idx (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         img_path = self.images[idx]
         crop, state = self.labels[idx]
 
@@ -95,163 +141,93 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
 
         return img, crop_label, state_label
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """ Method to return the length of the dataset
+
+        Returns:
+            int: The length of the dataset
+        """
         return len(self.images)
+    
+    def combine(self, other_dataset):
+        """
+        Combine this dataset with another dataset that is a subclass of BaseDataset.
+        
+        Args:
+            other_dataset (BaseDataset): Another dataset to combine with this one.
+        """
+        if not issubclass(type(other_dataset), type(self)):
+            raise TypeError("Can only combine datasets of the same type or its subclasses")
+        
+        # Combine images
+        self.images = np.concatenate((self.images, other_dataset.images))
+        
+        # Combine labels
+        self.labels = np.concatenate((self.labels, other_dataset.labels))
+        
+        # Update crops and states
+        self.crops = np.unique(np.concatenate((self.crops, other_dataset.crops)))
+        self.states = np.unique(np.concatenate((self.states, other_dataset.states)))
+        
+        # Update the map
+        self.map = self.generate_map()
 
-    def __str__(self):
-        string = "CCMT Augmented Dataset\n" + \
-            f"Split: {self.split}\n" + \
-            f"Image Count: {len(self.images)}\n" + \
-            f"Crop Class Count: {len(self.crops)}\n" + \
-            f"State Class Count: {len(self.states)}\n" + \
-            f"Crop Data Map: \n {self.data_map['crop']}\n" + \
-            f"State Data Map: \n {self.data_map['state']}\n"
-        return string
-
-    def equal_reduce(self, reduce_to: float):
-
-        images = []
-        labels = []
-        for state, count in self.data_map['state'].items():
-            reduction_amount = int(count * reduce_to)
-            added = 0
-            for i, img_path in enumerate(self.images):
-                state_check = state
-                if 'healthy' in state_check:
-                    crop = state_check.split('-')[0]
-                    if crop in img_path and 'healthy' in img_path:
-                        images.append(self.images[i])
-                        labels.append(self.labels[i])
-                        added += 1
-                elif state_check in img_path:
-                    images.append(self.images[i])
-                    labels.append(self.labels[i])
-                    added += 1
-
-                if added >= reduction_amount:
-                    break
-        self.images = images
-        self.labels = labels
-        self.crops = self._get_unique_crops()
-        self.states = self._get_unique_states()
-        self.crop_index_map = self._generate_index_map(self.crops)
-        self.state_index_map = self._generate_index_map(self.states)
-
-        logger.info(f'Reduced dataset to {len(self.images)} images')
-
-    def _fix_state_labels(self):
-        for i, state in enumerate(self.states):
-            if state == 'bb':
-                self.states[i] = 'bacterial blight'
-            elif state == 'bspot':
-                self.states[i] = 'brown spot'
-            elif state == 'farmyw':
-                self.states[i] = 'fall armyworm'
-            elif state == 'gmite':
-                self.states[i] = 'green mite'
-
-        for key, value in self.state_index_map.items():
-            if value == 'bb':
-                self.state_index_map[key] = 'bacterial blight'
-            elif value == 'bspot':
-                self.state_index_map[key] = 'brown spot'
-            elif value == 'farmyw':
-                self.state_index_map[key] = 'fall armyworm'
-            elif value == 'gmite':
-                self.state_index_map[key] = 'green mite'
-
-
+   
 class CropCCMTDataset(BaseDataset):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-    def walk_through_root_append_images_and_labels(self):
-        logger.debug(
-            f"Walking through root path: {self.root} to obtain images and labels for split {self.split}"
-        )
-        # Walk through root path
-
-        images = []
-        labels = []
-
-        for root, directories, files in os.walk(self.root):
-            for file in files:
-                if file.lower().endswith('.jpg') or file.lower().endswith('jpeg'):
-                    try:
-                        crop_label, state_label = self.handle_file(file)
-                    except Exception as e:
-                        logger.error(
-                            f"There was an issue with handling the file, make sure you have the right dataset class and dataset root directory set in the config file. {e}"
-                        )
-                        raise Exception(e)
-                 
-                    if crop_label is None or state_label is None:
-                        continue
-
-                    # Append image path and labels
-                    images.append(os.path.join(root, (os.path.basename(file))))
-                    labels.append((crop_label.lower(), state_label.lower()))
-
-                    if crop_label not in self.data_map['crop']:
-                        self.data_map['crop'][crop_label] = 1
-                    else:
-                        self.data_map['crop'][crop_label] += 1
-
-                    if state_label not in self.data_map['state']:
-                        self.data_map['state'][state_label] = 1
-                    else:
-                        self.data_map['state'][state_label] += 1
-
-        self.images = np.array(images, dtype=object)
-        self.labels = np.array(labels, dtype=object)
-
-        logger.info(f'Finished walking through root path, found {len(self.images)} images.')
-
-    def handle_file(self, file):
-        file_name = os.path.basename(file)
-
-        # Remove extension
-        file_name = os.path.splitext(file_name)[0]
-
-        # Remove file id from start of file name
-        # file_id = re.match(r'^\d+', file_name)
-        file_name = re.sub(r'^\d+', '', file_name)
-
-        # Split file name into classes and split
-        classes_and_split = file_name.split('_')
         
-        # Obtain crop label and split directory
-        crop_label = classes_and_split[0]
-        split_directory = classes_and_split[1]
-
-        # Change split directory to be consistent
-        if split_directory == 'valid':
-            split_directory = 'test'
-
-        # Check if required split matches
-        if split_directory != self.split:
-            #logger.warning(f'Split directory: {split_directory} does not match required split: {self.split}')
-            return None, None
-
-        # Obtain state label
-        state_label = classes_and_split[2]
+    def structure_data(self, test_split: float = None):
         
-        # Change healthy state labels to include crop label in them to differentiate
-        if state_label == 'healthy':
-            state_label = crop_label + '-healthy'
-        elif state_label == 'bb':
-            state_label = 'bacterial blight'
-        elif state_label == 'bspot':
-            state_label = 'brown spot'
-        elif state_label == 'farmyw':
-            state_label = 'fall armyworm'
-        elif state_label == 'gmite':
-            state_label = 'green mite'
+        train_images = []
+        train_labels = []
+        test_images = []
+        test_labels = []
+        
+        # Get each directory name in the root directory
+        crop_directories = os.listdir(self.root)
+        
+        for crop in crop_directories:
+            
+            split_directory = os.listdir(os.path.join(self.root, crop))
+            
+            for split in split_directory:
+                
+                state_directories = os.listdir(os.path.join(self.root, crop, split))
+                
+                for state in state_directories:
+                    
+                    image_files = os.listdir(os.path.join(self.root, crop, split, state))
+                    
+                    for image_file in image_files:
+                        
+                        if not image_file.lower().endswith('.jpg') and not image_file.lower().endswith('.jpeg'):
+                            logger.debug(f'File {image_file} is not a jpg file, skipping')
+                            continue
+                        
+                        image_path = os.path.join(self.root, crop, split, state, image_file)
+                        
+                        crop_label = crop.title()
+                        
+                        state_label = crop_label + '-Healthy' if 'healthy' in state.lower() else state.title()
+                        
+                        if 'test' in split:
+                            test_images.append(image_path)
+                            test_labels.append((crop_label, state_label))
+                        elif 'train' in split:
+                            train_images.append(image_path)
+                            train_labels.append((crop_label, state_label))
+        
+        train_images = np.array(train_images, dtype=object)
+        train_labels = np.array(train_labels, dtype=object)
+        test_images = np.array(test_images, dtype=object)
+        test_labels = np.array(test_labels, dtype=object)
+        
+        logger.info(f'Finished structuring data, found {len(train_images)} train images and {len(test_images)} test images')
+        
+        return train_images, train_labels, test_images, test_labels
 
-        return crop_label, state_label
-
-
+                         
 class PlantVillageDataset(BaseDataset):
     """A class to load the dataset from the data/dataset directory
     
@@ -261,71 +237,72 @@ class PlantVillageDataset(BaseDataset):
         BaseDataset (torch.utils.data.Dataset): Base class for all datasets in PyTorch
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        for i, (key, value) in enumerate(self.data_map['crop'].items()):
-            if key not in self.crops:
-                self.crops.append(key)
-
-        for i, (key, value) in enumerate(self.data_map['state'].items()):
-            if key not in self.states:
-                self.states.append(key)
-
-    def walk_through_root_append_images_and_labels(self):
-
-        logger.debug(
-            f'Walking through root path: {self.root} to obtain images and labels'
-        )
-
-        images = []
+    def __init__(self, test_split: float, **kwargs):
+        super().__init__(test_split=test_split, **kwargs)
+        
+    def structure_data(self, test_split: float = None):
+        # Go through the dataset directory and get all the images and labels
+        # Then use the test_split to split the data into train and test splits, return those
+        if test_split is None:
+            raise ValueError("test_split must be provided for PlantVillageDataset")
+        
+        directories = os.listdir(self.root)
+        
+        image_paths = []
         labels = []
+        
+        for directory in directories:
+            labels = directory.split('___')
+            crop = labels[0].title()
+            state = labels[1].title()
+            
+            if ',' in crop:
+                crop = crop.replace(',', '')
+                
+            if '_' in crop:
+                crop = crop.replace('_', ' ')
+                crop.title()
+                
+            if '_' in state:
+                state = state.replace('_', ' ')
+                state.title()
+            
+            if state == 'Healthy':
+                state = crop + '-Healthy'
+            
+            if 'tomato mosaic virus' in state.lower():
+                state = 'Mosaic'
+            
+            if 'cercospora leaf spot gray leaf spot' in state.lower():
+                state = 'Leaf Spot'
+            
+            if 'leaf blight (isariopsis leaf spot)' in state.lower():
+                state = 'Leaf Blight'
+                
+            if 'northern leaf blight' in state.lower():
+                state = 'Leaf Blight'
+                
+            if 'early blight' in state.lower():
+                state = 'Leaf Blight'
+            
+            if 'late blight' in state.lower():
+                state = 'Leaf Blight'
+                
+            if 'bacterial spot' in state.lower():
+                state = 'Bacterial Spot'
+            
+            
+            for image in os.listdir(os.path.join(self.root, directory)):
+                if not image.lower().endswith('.jpg') and not image.lower().endswith('.jpeg'):
+                    logger.debug(f'File {image} is not a jpg file, skipping')
+                    continue
+                
+                image_path = os.path.join(self.root, directory, image)
+                image_paths.append(image_path)
+                labels.append((crop, state))
+                
+            
+        crop_labels = np.unique(np.array(crop_labels))
+        state_labels = np.unique(np.array(state_labels))
+        
 
-        for root, directories, files in os.walk(self.root):
-            for directory in directories:
-
-                directory_path = os.path.join(root, directory)
-
-                sub_files = os.listdir(directory_path)
-
-                classes = directory.split('___')
-                crop_label = classes[0].lower()
-                state_label = classes[1].lower()
-
-                logger.debug(
-                    f'Found directory with crop: {crop_label} and state: {state_label} and {len(sub_files)} images'
-                )
-
-                if state_label == 'healthy':
-                    state_label = crop_label + '-healthy'
-
-                for file in sub_files:
-
-                    file_path = os.path.join(directory_path, file)
-
-                    if not file_path.lower().endswith(
-                            '.jpg') and not file_path.lower().endswith(
-                                '.jpeg'):
-                        logger.debug(
-                            f'File {file_path} is not a jpg file, skipping')
-                        continue
-                    # Append image path and labels
-                    images.append(file_path)
-                    labels.append((crop_label, state_label))
-
-                    if crop_label not in self.data_map['crop']:
-                        self.data_map['crop'][crop_label] = 1
-                    else:
-                        self.data_map['crop'][crop_label] += 1
-
-                    if state_label not in self.data_map['state']:
-                        self.data_map['state'][state_label] = 1
-                    else:
-                        self.data_map['state'][state_label] += 1
-
-        self.images = np.array(images, dtype=object)
-        self.labels = np.array(labels, dtype=object)
-
-        logger.info(
-            f'Finished walking through root path, found {len(self.images)} images, data map: {self.data_map}'
-        )

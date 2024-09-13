@@ -10,39 +10,7 @@ import shutil
 from collections import Counter
 
 from app.utility.file import get_file_method, load_yaml_file_as_dict
-from app.pipeline.pipeline import Pipeline
-
-
-def handle_pipeline(file: str,
-                    method: str,
-                    pipeline_config: str,
-                    dataset: str = None,
-                    **kwargs) -> bool:
-    logger.debug(
-        f"Handling pipeline with file {file} and method {method}, using dataset {dataset} and model config {pipeline_config}"
-    )
-    try:
-        # Get the file method
-        method_func = get_file_method(directory='pipeline',
-                                      file_name=file,
-                                      method_name=method,
-                                      extension='py')
-
-        # Load the model config
-        pipeline_config = load_yaml_file_as_dict(directory='config',
-                                                 file_name=pipeline_config)
-
-        # Run pipeline command
-        result = method_func(config=pipeline_config, **kwargs)
-
-    except Exception as e:
-        logger.error(
-            f"Error running pipeline action: \n{traceback.print_exc()}\n{e}")
-        return False
-
-    logger.info("Pipeline completed successfully")
-
-    return result
+from app.pipeline.pipelinenew import Pipeline
 
 
 def handle_train(pipeline_config: str):
@@ -63,23 +31,23 @@ def handle_train(pipeline_config: str):
     pipeline = Pipeline(config)
 
     # Train the modeol
-    pipeline.train_model()
+    pipeline.train()
 
-    # Save the model
-    pipeline.save_pipeline()
+    # # Save the model
+    # pipeline.save_pipeline()
 
-    # Save Confusion matrix metrics
-    pipeline.save_confusion_matrix()
+    # # Save Confusion matrix metrics
+    # pipeline.save_confusion_matrix()
 
-    # Save the evaluation graphs
-    pipeline.save_graphs()
+    # # Save the evaluation graphs
+    # pipeline.save_graphs()
 
-    # Package the pipeline for API return
-    pipeline_package = pipeline.package()
+    # # Package the pipeline for API return
+    # pipeline_package = pipeline.package()
 
-    logger.info("Training pipeline completed")
+    # logger.info("Training pipeline completed")
 
-    return pipeline_package
+    # return pipeline_package
 
 
 def handle_predict(pipeline_config, image_path: str) -> dict:

@@ -10,7 +10,6 @@ from werkzeug.utils import secure_filename
 
 from app import main_api
 from app.config import AppConfig
-from app.handler.pipeline import handle_pipeline
 
 pipeline_blueprint = Blueprint('pipeline', __name__)
 pipeline_ns = Namespace('pipeline', description='pipeline operations')
