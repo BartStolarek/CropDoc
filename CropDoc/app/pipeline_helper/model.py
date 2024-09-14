@@ -1,6 +1,30 @@
 import torch
 import torchvision
 import os
+import numpy as np
+
+class ModelMeta:
+    def __init__(self, meta_dict: dict):
+        self.epochs = meta_dict['epochs']
+        self.crops = np.array(meta_dict['crops'])
+        self.states = np.array(meta_dict['states'])
+        self.name = meta_dict['name']
+        self.version = meta_dict['version']
+         
+    def to_dict(self):
+        return {
+            'epochs': self.epochs,
+            'crops': self.crops.tolist(),  # Convert NumPy array to list
+            'states': self.states.tolist(),  # Convert NumPy array to list
+            'name': self.name,
+            'version': self.version
+        }
+    
+    def __str__(self):
+        return f"{self.name} ({self.version}) trained for {self.epochs} epochs, with crops: {len(self.crops)} and states: {len(self.states)}"
+
+
+
 
 class ResNet50(torch.nn.Module):
     """A multi-head ResNet model for the CropCCMT dataset

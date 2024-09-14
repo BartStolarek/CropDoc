@@ -17,7 +17,7 @@ class OptimiserManager():
         else:
             self.optimiser = self._create_optimiser()
             
-        self.save_optimiser(self.optimiser)
+        self.save_optimiser()
             
     def _create_optimiser(self):
         optimiser = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
@@ -31,9 +31,9 @@ class OptimiserManager():
     def get_optimiser(self):
         return self.optimiser
     
-    def save_optimiser(self, optimiser):
+    def save_optimiser(self):
         os.makedirs(os.path.join(self.output_directory, 'optimiser'), exist_ok=True)
-        torch.save(optimiser.state_dict(), self.optimiser_path)
+        torch.save(self.optimiser.state_dict(), self.optimiser_path)
         logger.info(f"Optimiser saved at {self.optimiser_path}")
         
         

@@ -4,6 +4,7 @@ import torch
 from app.pipeline_helper.model import ResNet50
 from app.pipeline_helper.datasetadapter import Structure
 from app.pipeline_helper.numpyarraymanager import NumpyArrayManager
+from app.pipeline_helper.model import ModelMeta
 from loguru import logger
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
@@ -13,18 +14,6 @@ MODEL_CLASSES = {
     # 'VGG16': VGG16,
     # 'Xception': Xception,
 }
-
-
-class ModelMeta:
-    def __init__(self, meta_dict: dict):
-        self.epochs = meta_dict['epochs']
-        self.crops = np.array(meta_dict['crops'])
-        self.states = np.array(meta_dict['states'])
-        self.name = meta_dict['name']
-        self.version = meta_dict['version']
-         
-    def to_dict(self):
-        return self.__dict__
 
 
 class ModelManager:
@@ -55,9 +44,7 @@ class ModelManager:
             self.replace_head()
             
         self.save_model()
-        
-        
-            
+             
     def load_model(self):
         if os.path.exists(self.meta_path) and os.path.exists(self.model_path):
             model_meta = ModelMeta(torch.load(self.meta_path, weights_only=False))
@@ -66,10 +53,13 @@ class ModelManager:
             if self.eval:
                 model.load_state_dict(torch.load(self.model_path, map_location='cpu', weights_only=True))
                 model.eval()
+                logger.info('Model loaded in evaluation mode')
             else:
                 model.load_state_dict(torch.load(self.model_path, weights_only=True))
                 model.train()
-            
+                logger.info('Model loaded in training mode')
+            logger.info(f"Loaded model {self.name_version} with data structure crops: {len(model_meta.crops)} and states: {len(model_meta.states)}")
+            logger.info(f"Model meta loaded: {model_meta}")
             return model, model_meta
         else:
             logger.info(f"Model not found at {self.model_path} or Model meta not found at {self.meta_path}")
@@ -86,9 +76,11 @@ class ModelManager:
         })
         logger.info(f"Created new model {self.name_version} with data structure crops: {len(self.data_structure.crops)} and states: {len(self.data_structure.states)}")
         if self.eval:
+            logger.info("Model set to evaluation mode")
             model.eval()
         else:
             model.train()
+            logger.info("Model set to training mode")
         return model, model_meta
     
     def consistent_classes_with_dataset(self, data_structure: Structure) -> bool:
@@ -124,8 +116,12 @@ class ModelManager:
             os.makedirs(os.path.join(self.output_directory, 'model'))
         torch.save(self.model.state_dict(), self.model_path)
         torch.save(self.model_meta.to_dict(), self.meta_path)
-        logger.info(f"Model saved at {self.model_path}, and model meta saved at {self.meta_path}")
+        logger.info(f"Model saved at {self.model_path}")
+        logger.info(f"Model meta saved at {self.meta_path}")
         
     def get_model(self):
         return self.model
+    
+    def update_performance(self, performance):
+        pass
 

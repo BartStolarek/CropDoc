@@ -25,7 +25,7 @@ class SchedulerManager():
         else:
             self.scheduler = self._create_scheduler()
             
-        self.save_scheduler(self.scheduler)
+        self.save_scheduler()
             
     def _create_scheduler(self):
         return torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -42,7 +42,7 @@ class SchedulerManager():
     def get_scheduler(self):
         return self.scheduler
     
-    def save_scheduler(self, scheduler):
+    def save_scheduler(self):
         os.makedirs(os.path.join(self.output_directory, 'scheduler'), exist_ok=True)
-        torch.save(scheduler.state_dict(), self.scheduler_path)
+        torch.save(self.scheduler.state_dict(), self.scheduler_path)
         logger.info(f"Scheduler saved at {self.scheduler_path}")
