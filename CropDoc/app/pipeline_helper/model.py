@@ -1,5 +1,6 @@
 import torch
 import torchvision
+import os
 
 class ResNet50(torch.nn.Module):
     """A multi-head ResNet model for the CropCCMT dataset
@@ -70,3 +71,31 @@ class ResNet50(torch.nn.Module):
 
         # Return the crop and state tensors
         return crop_out, state_out  # TODO: Add to report that the forward pass will return the crop and state tensors
+
+    def save_checkpoint(self, epoch, optimizer, scheduler, model_meta, filename, checkpoint_directory):
+        """ Save the model checkpoint
+
+        Args:
+            epoch (int): The current epoch
+            optimizer (torch.optim): The optimizer
+            loss (float): The loss
+            filename (str): The filename
+            checkpoint_directory (str): The directory to save the checkpoint
+        """
+        directory_path = os.path.join(checkpoint_directory, f'epoch_{epoch}')
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path, exist_ok=True)
+
+        # Save the model checkpoint
+        torch.save(self.state_dict(), os.path.join(directory_path, filename))
+        
+        # Save the optimizer checkpoint
+        torch.save(optimizer.state_dict(), os.path.join(directory_path, 'optimizer.pth'))
+        
+        # Save the scheduler checkpoint
+        torch.save(scheduler.state_dict(), os.path.join(directory_path, 'scheduler.pth'))
+        
+        # Save the model meta data
+        torch.save(model_meta.to_dict(), os.path.join(directory_path, 'meta.pth'))
+        
+        

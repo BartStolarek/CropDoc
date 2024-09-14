@@ -23,6 +23,7 @@ class TrainingManager():
         self.train_transformers = train_transformers
         self.val_transformers = val_transformers
         
-        self.epochs = self.config['train']['epochs']
+        self.epochs = int(config['train']['epochs'])
         
-    def start_training(self)
+    def start_training(self):
+        pass

@@ -1,5 +1,4 @@
-
-from app.pipeline_helper.dataset import CropCCMTDataset, PlantVillageDataset
+from app.pipeline_helper.datasetadapter import CropCCMTDataset, PlantVillageDataset
 from app.pipeline_helper.datasetmanager import DatasetManager
 from app.pipeline_helper.modelmanager import ModelManager
 from app.pipeline_helper.transformermanager import TransformerManager
@@ -30,14 +29,12 @@ class Pipeline:
         
         # Models
         model_manager = ModelManager(
-            config=self.config, 
+            config=self.config,
             output_directory=self.output_directory,
-            num_classes_crop=len(train_dataset.crops),
-            num_classes_state=len(train_dataset.states),
+            data_structure=dataset_manager.structure,
             eval=False
         )
-        if dataset_manager.new_head_required:
-            model_manager.create_new_head()   
+
         self.model = model_manager.get_model()
         
         # Loss Functions

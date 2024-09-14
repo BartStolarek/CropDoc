@@ -1,6 +1,7 @@
 import os
 import re
 from abc import ABC, abstractmethod
+from app.pipeline_helper.numpyarraymanager import NumpyArrayManager
 
 import numpy as np
 import torch
@@ -8,14 +9,32 @@ from loguru import logger
 from PIL import Image
 import json
 
+PIL_SUPPORTED_EXTENSIONS = [
+    'jpg',
+    'jpeg',
+    'png',
+    'gif',
+    'bmp',
+    'tiff',
+    'tif',
+    'webp',
+    'ico',
+    'ppm',  # Portable Pixmap
+    'pgm',  # Portable Graymap
+    'pbm',  # Portable Bitmap
+    'pcx',  # PCX
+    'tga',  # Truevision TGA
+    'eps',  # Encapsulated Postscript (requires Ghostscript)
+]
+
 class Structure():
     def __init__(self, train_images=None, train_labels=None, test_images=None, test_labels=None, crops=None, states=None):
-        self.train_images = train_images
-        self.train_labels = train_labels
-        self.test_images = test_images
-        self.test_labels = test_labels
-        self.crops = crops
-        self.states = states
+        self.train_images = np.array(train_images) if not isinstance(train_images, np.ndarray) else train_images
+        self.train_labels = np.array(train_labels) if not isinstance(train_labels, np.ndarray) else train_labels
+        self.test_images = np.array(test_images) if not isinstance(test_images, np.ndarray) else test_images
+        self.test_labels = np.array(test_labels) if not isinstance(test_labels, np.ndarray) else test_labels
+        self.crops = np.array(crops) if not isinstance(crops, np.ndarray) else crops
+        self.states = np.array(states) if not isinstance(states, np.ndarray) else states
         
     def save_structure(self, directory):
         if not os.path.exists(directory):
@@ -24,6 +43,7 @@ class Structure():
         
         with open(os.path.join(directory, 'structure.json'), 'w') as f:
             json.dump(save_dict, f)
+        logger.info(f"Structure saved at {os.path.join(directory, 'structure.json')}")
     
     def convert_to_dict(self):
         new_dict = {}
@@ -62,13 +82,58 @@ class Structure():
             f"States: {len(self.states)}"
         return string
     
-    @staticmethod
-    def array_equal_unordered(a, b):
-        if a is None and b is None:
-            return True
-        if a is None or b is None:
-            return False
-        return np.array_equal(np.sort(a), np.sort(b))
+    def equal(self, other_structure) -> False:
+        np_array_manager = NumpyArrayManager()
+        
+        for this_key, this_value in self.__dict__.items():
+            other_value = getattr(other_structure, this_key)
+            
+            this_value_unique = np.unique(this_value)
+            other_value_unique = np.unique(other_value)
+            
+            if len(this_value_unique) != len(other_value_unique):
+                logger.info(f"Current structure {this_key} has different length of unique values ({len(this_value_unique)}) than other structure ({len(other_value_unique)})")
+                return False
+            
+            this_value_unique = np.sort(this_value_unique)
+            other_value_unique = np.sort(other_value_unique)
+            
+            if not np.array_equal(this_value_unique, other_value_unique):
+                logger.info(f"Current structure {this_key} has different unique values than other structure")
+                difference = np_array_manager.get_difference(this_value_unique, other_value_unique)
+                # Print first 10 values of difference
+                logger.info(f"First 10 differences: {difference[:10]}")
+                logger.info(f"Other structure has {len(difference)} unique values")
+                return False
+            
+        return True
+        
+    def merge(self, other_structure):
+        np_array_manager = NumpyArrayManager()
+        
+        new_train_images, train_appended_indices = np_array_manager.append_missing_unique_elements(self.train_images, other_structure.train_images)
+        logger.info(f"Found {len(train_appended_indices)} new train images to append")
+        new_test_images, test_appended_indices = np_array_manager.append_missing_unique_elements(self.test_images, other_structure.test_images)
+        logger.info(f"Found {len(test_appended_indices)} new test images to append")
+        
+        new_train_labels = np.concatenate((self.train_labels, other_structure.train_labels[train_appended_indices]))
+        new_test_labels = np.concatenate((self.test_labels, other_structure.test_labels[test_appended_indices]))
+        
+        new_crops, _ = np_array_manager.append_missing_unique_elements(self.crops, other_structure.crops)
+        new_states, _ = np_array_manager.append_missing_unique_elements(self.states, other_structure.states)
+        
+        return Structure(
+            train_images=new_train_images,
+            train_labels=new_train_labels,
+            test_images=new_test_images,
+            test_labels=new_test_labels,
+            crops=new_crops,
+            states=new_states
+        )
+        
+        
+        
+        
 
 
 class BaseDataset(torch.utils.data.Dataset, ABC):
@@ -97,6 +162,7 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
         # Generate the unique index maps for crops and states if not provided, same across both train and test splits
         self.crops = self.get_crops() 
         self.states = self.get_states()
+        logger.info(f"Found {len(self.crops)} unique crops and {len(self.states)} unique states")
         
         # Generate the count maps for train and test splits
         self.train_map = self.generate_map('train')
@@ -154,7 +220,7 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
         if not np.array_equal(train_crops, test_crops):
             raise ValueError(f"Train and test crops must be the same, there are different crops in the train and test splits: \nTrain Crops:\n{train_crops}, \nTest Crops:\n{test_crops}")
         
-        logger.info('Generated new crop index')
+
         return train_crops
 
     def get_states(self) -> np.ndarray:
@@ -170,7 +236,7 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
         if not np.array_equal(train_states, test_states):
             raise ValueError(f"Train and test crops must be the same, there are different crops in the train and test splits: \nTrain Crops:\n{train_states}, \nTest Crops:\n{test_states}")
         
-        logger.info('Generated new state index')
+
         return train_states
           
     @abstractmethod
@@ -264,25 +330,32 @@ class CropCCMTDataset(BaseDataset):
         test_images = []
         test_labels = []
         
+        train_objects = []
+        
+        test_objects = []
+        
         # Get each directory name in the root directory
-        crop_directories = os.listdir(self.roots[0])
+        crop_directories = sorted(os.listdir(self.roots[0]))
         
         for crop in crop_directories:
             
-            split_directory = os.listdir(os.path.join(self.roots[0], crop))
+            split_directory = sorted(os.listdir(os.path.join(self.roots[0], crop)))
             
             for split in split_directory:
                 
-                state_directories = os.listdir(os.path.join(self.roots[0], crop, split))
+                state_directories = sorted(os.listdir(os.path.join(self.roots[0], crop, split)))
                 
                 for state in state_directories:
                     
-                    image_files = os.listdir(os.path.join(self.roots[0], crop, split, state))
+                    image_files = sorted(os.listdir(os.path.join(self.roots[0], crop, split, state)))
                     
                     for image_file in image_files:
                         
-                        if not image_file.lower().endswith('.jpg') and not image_file.lower().endswith('.jpeg'):
-                            logger.debug(f'File {image_file} is not a jpg file, skipping')
+                        # Obtain image file extension
+                        extension = os.path.splitext(image_file)[1]
+                        
+                        if not extension.lower() not in PIL_SUPPORTED_EXTENSIONS:
+                            logger.debug(f'File {image_file} is not a image file, skipping')
                             continue
                         
                         image_path = os.path.join(self.roots[0], crop, split, state, image_file)
@@ -292,18 +365,23 @@ class CropCCMTDataset(BaseDataset):
                         state_label = crop_label + '-Healthy' if 'healthy' in state.lower() else state.title()
                         
                         if 'test' in split:
-                            test_images.append(image_path)
-                            test_labels.append((crop_label, state_label))
+                            test_objects.append((image_path, (crop_label, state_label)))
                         elif 'train' in split:
-                            train_images.append(image_path)
-                            train_labels.append((crop_label, state_label))
+                            train_objects.append((image_path, (crop_label, state_label)))
+
         
-        train_images = np.array(train_images, dtype=object)
-        train_labels = np.array(train_labels, dtype=object)
-        test_images = np.array(test_images, dtype=object)
-        test_labels = np.array(test_labels, dtype=object)
+        # Sort by image_path
+        train_objects = sorted(train_objects, key=lambda x: x[0])
+        test_objects = sorted(test_objects, key=lambda x: x[0])
         
-        logger.info(f'Finished structuring data, found {len(train_images)} train images and {len(test_images)} test images')
+        
+        # Unpack the sorted objects in to np arrays
+        train_images = np.array([x[0] for x in train_objects])
+        train_labels = np.array([x[1] for x in train_objects])
+        test_images = np.array([x[0] for x in test_objects])
+        test_labels = np.array([x[1] for x in test_objects])
+        
+        logger.info(f'Finished structuring CCMT Dataset data, found {len(train_images)} train images and {len(test_images)} test images')
         
         return train_images, train_labels, test_images, test_labels
 
@@ -326,10 +404,11 @@ class PlantVillageDataset(BaseDataset):
         if test_split is None:
             raise ValueError("test_split must be provided for PlantVillageDataset")
         
-        directories = os.listdir(self.roots[0])
+        directories = sorted(os.listdir(self.roots[0]))
         
         image_paths = []
         labels = []
+        image_objects= []
         
         for directory in directories:
             label_split = directory.split('___')
@@ -371,21 +450,28 @@ class PlantVillageDataset(BaseDataset):
             if 'bacterial spot' in state.lower():
                 state = 'Bacterial Spot'
             
-            
-            for image in os.listdir(os.path.join(self.roots[0], directory)):
-                if not image.lower().endswith('.jpg') and not image.lower().endswith('.jpeg'):
-                    logger.debug(f'File {image} is not a jpg file, skipping')
+            image_files = sorted(os.listdir(os.path.join(self.roots[0], directory)))
+            for image in image_files:
+                extension = os.path.splitext(image)[1]
+                if not extension.lower() not in PIL_SUPPORTED_EXTENSIONS:
+                    logger.debug(f'File {image} is not a image file, skipping')
                     continue
                 
                 image_path = os.path.join(self.roots[0], directory, image)
-                image_paths.append(image_path)
-                labels.append((crop, state))
+                image_objects.append((image_path, (crop, state)))
 
-        image_paths = np.array(image_paths, dtype=object)
-        labels = np.array(labels, dtype=object)
+        # Sort the image objects by image path
+        image_objects = sorted(image_objects, key=lambda x: x[0])
+
+        # Unpack the sorted objects into numpy arrays
+        image_paths = np.array([x[0] for x in image_objects])
+        labels = np.array([x[1] for x in image_objects])
         
         # Randomly split image paths and labels into train and test splits
         num_samples = len(image_paths)
+        
+        # Set a fixed random seed
+        np.random.seed(42)
         
         indices = np.arange(num_samples)
         np.random.shuffle(indices)
@@ -399,6 +485,8 @@ class PlantVillageDataset(BaseDataset):
         train_labels = labels[train_indices]
         test_image_paths = image_paths[test_indices]
         test_labels = labels[test_indices]
+        
+        logger.info(f'Finished structuring Plant Village Dataset data, found {len(train_image_paths)} train images and {len(test_image_paths)} test images')
         
         return train_image_paths, train_labels, test_image_paths, test_labels
         

@@ -16,10 +16,10 @@ from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from tqdm import tqdm
 
 from app.pipeline_helper.dataloader import TransformDataLoader
-from app.pipeline_helper.dataset import (BaseDataset, CropCCMTDataset,
+from app.pipeline_helper.datasetadapter import (BaseDataset, CropCCMTDataset,
                                          PlantVillageDataset)
 from app.pipeline_helper.model import MultiHeadResNetModel
-from CropDoc.app.pipeline_helper.transformermanager import TransformerManager
+from app.pipeline_helper.transformermanager import TransformerManager
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore",

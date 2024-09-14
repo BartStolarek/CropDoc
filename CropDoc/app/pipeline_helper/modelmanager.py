@@ -1,7 +1,12 @@
+import numpy as np
 import os
 import torch
 from app.pipeline_helper.model import ResNet50
+from app.pipeline_helper.datasetadapter import Structure
+from app.pipeline_helper.numpyarraymanager import NumpyArrayManager
 from loguru import logger
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
 
 MODEL_CLASSES = {
     'ResNet50': ResNet50,
@@ -9,61 +14,118 @@ MODEL_CLASSES = {
     # 'Xception': Xception,
 }
 
+
+class ModelMeta:
+    def __init__(self, meta_dict: dict):
+        self.epochs = meta_dict['epochs']
+        self.crops = np.array(meta_dict['crops'])
+        self.states = np.array(meta_dict['states'])
+        self.name = meta_dict['name']
+        self.version = meta_dict['version']
+         
+    def to_dict(self):
+        return self.__dict__
+
+
 class ModelManager:
-    def __init__(self, config, output_directory, num_classes_crop, num_classes_state, eval=False):
+    
+    def __init__(self, config, output_directory, data_structure: Structure, eval=False):
         self.config = config
-        self.output_directory = output_directory
-        self.model_name = config['pipeline']['model']
+        
+        self.name = config['pipeline']['model']
         self.version = config['pipeline']['version']
-        self.model_final_path = os.path.join(output_directory, 'final', f"{self.model_name}-{str(self.version)}.pth")
-        self.checkpoint_directory_path = os.path.join(output_directory, 'checkpoints')
+        self.name_version = f"{self.name}-{str(self.version)}"
+        self.output_directory = output_directory
         self.eval = eval
+        self.data_structure = data_structure
         
-        self.num_classes_crop = num_classes_crop
-        self.num_classes_state = num_classes_state
+        self.model_path = os.path.join(output_directory, 'model', f"{self.name_version}.pth")
+        self.meta_path = os.path.join(output_directory, 'model', f"{self.name_version}.meta")
+        self.checkpoint_directory = os.path.join(output_directory, 'checkpoints')
         
-        self.model = self._load_or_create_model()
-        if self.eval:
-            self.model.eval()
-        else:
-            self.model.train()
+        # Load existing model
+        self.model, self.model_meta = self.load_model()
+        
+        # If no model was found, create a new model
+        if self.model is None or self.model_meta is None:
+            self.model, self.model_meta = self.create_model()
+        
+        # If model's classes are not consistent with dataset, replace head
+        if not self.consistent_classes_with_dataset(data_structure):
+            self.replace_head()
             
+        self.save_model()
         
         
-    def _load_or_create_model(self):
-        if os.path.exists(self.model_final_path):
-            model = self._load_model()
-        else:
-            model = self._create_model()
-            self.training_history = {}
-        
-        return model
-    
-    def _load_model(self):
-        model = MODEL_CLASSES[self.model_name](self.num_classes_crop, self.num_classes_state)
-        if self.eval:
-            model.load_state_dict(torch.load(self.model_final_path, map_location='cpu'))
-        else:
-            model.load_state_dict(torch.load(self.model_final_path))
-        logger.info(f"Model loaded from {self.model_final_path}")
-        return model
-    
-    def _create_model(self):
-        logger.info(f"Creating new {self.model_name} model")
-        return MODEL_CLASSES[self.model_name](self.num_classes_crop, self.num_classes_state)
-    
-    def create_new_head(self, model):
-        logger.info("Creating new heads for the model")
-        model.create_new_head(self.num_classes_crop, self.num_classes_state)
-    
-    def save_model(self, is_best=False):
-        if is_best:
-            torch.save(self.model.state_dict(), self.model_final_path)
-            torch.save()
             
+    def load_model(self):
+        if os.path.exists(self.meta_path) and os.path.exists(self.model_path):
+            model_meta = ModelMeta(torch.load(self.meta_path, weights_only=False))
+            model = MODEL_CLASSES[self.name](len(model_meta.crops), len(model_meta.states))
+            
+            if self.eval:
+                model.load_state_dict(torch.load(self.model_path, map_location='cpu', weights_only=True))
+                model.eval()
+            else:
+                model.load_state_dict(torch.load(self.model_path, weights_only=True))
+                model.train()
+            
+            return model, model_meta
         else:
-            checkpoint_path = os.path.join(self.checkpoint_directory_path, f"{self.model_name}-{str(self.version)}_checkpoint.pth")
-            torch.save(self.model.state_dict(), checkpoint_path)
+            logger.info(f"Model not found at {self.model_path} or Model meta not found at {self.meta_path}")
+            return None, None
+            
+    def create_model(self):
+        model = MODEL_CLASSES[self.name](len(self.data_structure.crops), len(self.data_structure.states))
+        model_meta = ModelMeta({
+            'epochs': 0,
+            'crops': self.data_structure.crops,
+            'states': self.data_structure.states,
+            'name': self.config['pipeline']['model'],
+            'version': self.config['pipeline']['version']
+        })
+        logger.info(f"Created new model {self.name_version} with data structure crops: {len(self.data_structure.crops)} and states: {len(self.data_structure.states)}")
+        if self.eval:
+            model.eval()
+        else:
+            model.train()
+        return model, model_meta
     
+    def consistent_classes_with_dataset(self, data_structure: Structure) -> bool:
+        
+        numpy_array_manager = NumpyArrayManager()
+        
+        if not numpy_array_manager.check_arrays_are_exact(self.model_meta.crops, data_structure.crops):
+            logger.info(f"Model crops ({len(self.model_meta.crops)}) are not the same as data structure crops ({len(data_structure.crops)})")
+            return False
+        
+        if not numpy_array_manager.check_arrays_are_exact(self.model_meta.states, data_structure.states):
+            logger.info(f"Model states ({len(self.model_meta.states)}) are not the same as data structure states({len(data_structure.states)})")
+            return False
+        
+        logger.info(f"Model classes are consistent with dataset classes")
+        return True
+    
+    def replace_head(self):
+        user_input = input("You are about to replace the head of the model, are you sure you want to continue? (Y/N): ")
+        if user_input == 'N':
+            raise Exception("User chose not to replace the head of the model. Exiting...")
+        elif user_input != 'Y':
+            raise Exception("Invalid input. Exiting...")
+        else:
+            self.model.create_new_head(len(self.data_structure.crops), len(self.data_structure.states))
+            self.model_meta.crops = self.data_structure.crops
+            self.model_meta.states = self.data_structure.states
+            logger.info(f"Replaced head of model {self.name_version} with crops: {len(self.data_structure.crops)} and states: {len(self.data_structure.states)}")
+            logger.warning("Model will require training, as the head has been replaced")
+    
+    def save_model(self):
+        if not os.path.exists(os.path.join(self.output_directory, 'model')):
+            os.makedirs(os.path.join(self.output_directory, 'model'))
+        torch.save(self.model.state_dict(), self.model_path)
+        torch.save(self.model_meta.to_dict(), self.meta_path)
+        logger.info(f"Model saved at {self.model_path}, and model meta saved at {self.meta_path}")
+        
     def get_model(self):
         return self.model
+
