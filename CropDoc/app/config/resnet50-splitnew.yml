@@ -1,17 +1,16 @@
-model:
+pipeline:
   model: ResNet50
   version: 3.0
-  output_dir: data/output
 datasets:
   - name: CropCCMTDataset
     class: CropCCMTDataset  # Class names are; CropCCMTDataset, PlantVillageDataset
-    dir: data/datasets/CCMT Dataset-Augmented  # Dataset directories include; CCMT Dataset-Augmented, plantvillage/custom
-    activate: True
+    root: data/datasets/CCMT Dataset-Augmented  # Dataset directories include; CCMT Dataset-Augmented, plantvillage/custom
+    active: True
   - name: PlantVillageDataset
     class: PlantVillageDataset
-    dir: data/datasets/plantvillage/color
+    root: data/datasets/plantvillage/color
     test_split: 0.2
-    activate: False
+    active: True
 train:
   epochs: 2
   checkpoint_interval: 2 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)

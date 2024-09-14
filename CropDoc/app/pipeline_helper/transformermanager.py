@@ -4,21 +4,10 @@ from loguru import logger
 
 class TransformerManager:
     def __init__(self):
-        self.transformers = self._get_transformers()
         logger.info("Created a TransformerManager object with transformers")
 
-    def __len__(self):
-        return self._calculate_total_transforms()
-
-    def _calculate_total_transforms(self):
-        total_transforms = 0
-        for split, transformer in self.transformers.items():
-            total_transforms += len(transformer.transforms)
-        return total_transforms
-
-    def _get_transformers(self) -> Dict[str, torchvision.transforms.Compose]:
-        logger.debug("Getting transformers")
-
+    def get_train_transformers(self) -> torchvision.transforms.Compose:
+        
         train_transformers = torchvision.transforms.Compose([
             torchvision.transforms.RandomResizedCrop(224),
             torchvision.transforms.RandomHorizontalFlip(),
@@ -28,36 +17,22 @@ class TransformerManager:
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
-        logger.info("Created train transformers")
-
+        return train_transformers
+    
+    def get_val_transformers(self) -> torchvision.transforms.Compose:
         val_transformers = torchvision.transforms.Compose([
             torchvision.transforms.Resize(256),
             torchvision.transforms.CenterCrop(224),
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
-        logger.info("Created val transformers")
-
+        return val_transformers
+    
+    def get_test_transformers(self) -> torchvision.transforms.Compose:
         test_transformers = torchvision.transforms.Compose([
             torchvision.transforms.Resize(256),
             torchvision.transforms.CenterCrop(224),
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
-        logger.info("Created test transformers")
-
-        transformer_dict = {
-            'train': train_transformers,
-            'val': val_transformers,
-            'test': test_transformers
-        }
-
-        logger.info("Created a dict of transformers with keys 'train', 'val', and 'test' and corresponding composed transformers")
-
-        return transformer_dict
-
-    def get_transformer(self, split: str) -> torchvision.transforms.Compose:
-        if split not in self.transformers:
-            logger.error(f"Invalid split: {split}. Must be one of 'train', 'val', or 'test'.")
-            return None
-        return self.transformers[split]
+        return test_transformers

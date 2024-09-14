@@ -122,7 +122,7 @@ def load_yaml_file_as_dict(directory: str, file_name: str) -> dict:
         with open(file_path, 'r') as file:
             config = yaml.safe_load(file)
         logger.info(
-            f"Successfully loaded model configuration file {file_name}.yml")
+            f"Successfully loaded configuration file {file_name}.yml")
         return config
     except FileNotFoundError:
         logger.error(

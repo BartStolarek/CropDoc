@@ -420,7 +420,7 @@ class Pipeline():
 
         # Define the best validation loss
         checkpoint_interval = self.pipeline_config['training'][
-            'checkpoint_interval']  # The minimum epochs to go buy before checking to save another checkpoint
+            'checkpoint_interval']  # The minimum epochs to go by before checking to save another checkpoint
 
         # Define the number of epochs to train for and set the epoch range
         self.epochs = self.pipeline_config['training']['epochs']
