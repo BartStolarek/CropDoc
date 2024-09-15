@@ -7,16 +7,20 @@ class Metrics:
     def __init__(self, epoch=None, split=None, label=None, metric_dict=None):
         if metric_dict is None:
             self.epoch = epoch
+            if split is None:
+                raise ValueError("Split cannot be None")
             self.split = split
+            if label is None:
+                raise ValueError("Label cannot be None")
             self.label = label
-            self.accuracy = None
-            self.loss = None
-            self.precision = None
-            self.recall = None
-            self.f1_score = None
-            self.correctly_classified = None
-            self.total_classifications = None
-            self.confusion_matrix = None
+            self.accuracy = 0
+            self.loss = 1e10
+            self.precision = 0
+            self.recall = 0
+            self.f1_score = 0
+            self.correctly_classified = 0
+            self.total_classifications = 0
+            self.confusion_matrix = []
         else:
             self.epoch = metric_dict['epoch']
             self.split = metric_dict['split']
@@ -29,14 +33,29 @@ class Metrics:
             self.correctly_classified = metric_dict['correctly_classified']
             self.total_classifications = metric_dict['total_classifications']
             self.confusion_matrix = metric_dict['confusion_matrix']
-        
+
+    
+    def __str__(self):
+        return f"Epoch: {self.epoch}, Split: {self.split}, Label: {self.label}, Accuracy: {self.accuracy}, Loss: {self.loss}, Precision: {self.precision}, Recall: {self.recall}, F1 Score: {self.f1_score}, Correctly Classified: {self.correctly_classified}, Total Classifications: {self.total_classifications}"
+      
     def get_formatted_dict(self):
-        split_letter = self.split[0].upper()
-        label_letter = self.label[0].upper()
-        return {
-            f"{split_letter}{label_letter}A": self.format_accuracy(self.accuracy),
-            f"{split_letter}{label_letter}L": self.format_loss(self.loss),
-        }
+        try:
+            if self.split is 'train':
+                split_letter = 'T'
+            elif self.split is 'val':
+                split_letter = 'V'
+            elif self.split is 'test':
+                split_letter = 'TE'
+
+            label_letter = self.label[0].upper()
+            return {
+                f"{split_letter}{label_letter}A": self.format_accuracy(self.accuracy),
+                f"{split_letter}{label_letter}L": self.format_loss(self.loss),
+            }
+        except TypeError as e:
+            print(f"Error in get_formatted_dict: {self}")
+            print(f"self.accuracy: {self.accuracy}, self.loss: {self.loss}")
+            raise TypeError(e)
         
     def format_accuracy(self, metric: float) -> str:
         """ Format the accuracy metric into a percentage string
@@ -59,23 +78,6 @@ class Metrics:
             str: The formatted loss metric to 3 decimal places
         """
         return f"{metric:.3f}"
-        
-    def change_percentage(self, new_metrics, metric):
-        return self._calculate_change(new_metrics[metric], getattr(self, metric))
-        
-    def _calculate_change(self, new_value: float, old_value: float) -> float:
-        """ Calculate the percentage change between two values
-
-        Args:
-            new_value (float): The value it is changing to
-            old_value (float): The value it is changing from
-
-        Returns:
-            float: The percentage change between the two values
-        """
-        if old_value == 0:
-            return 0
-        return new_value / old_value - 1
     
     def to_dict(self):
         return self.__dict__
@@ -94,6 +96,19 @@ class LabelMetrics:
             self.crop = Metrics(label_dict['crop'])
             self.state = Metrics(label_dict['state'])
     
+    def __str__(self):
+        return f"Epoch: {self.epoch}, Split: {self.split}, \nCrop: {self.crop}, \nState: {self.state}"
+    
+    def assign_split(self, split):
+        self.split = split
+        self.crop.split = split
+        self.state.split = split
+        
+    def assign_label(self, label):
+        self.label = label
+        self.crop.label = label
+        self.state.label = label
+    
     def assign_epoch(self, epoch):
         self.epoch = epoch
         self.crop.epoch = epoch
@@ -104,20 +119,6 @@ class LabelMetrics:
         formatted_dict.update(self.crop.get_formatted_dict())
         formatted_dict.update(self.state.get_formatted_dict())
         return formatted_dict
-    
-    # Function that takes a new LabelMetrics objects and returns the change percentage for each metric
-    def change_percentage(self, new_metrics, label: str, metric: str) -> float:
-        """ Calculate the percentage change between two metrics within a label
-
-        Args:
-            new_metrics (_type_): _description_
-            label (str): _description_
-            metric (str): _description_
-
-        Returns:
-            float: _description_
-        """
-        return getattr(self, label).change_percentage(getattr(new_metrics, label), metric)
     
     def to_dict(self):
         return {
@@ -142,10 +143,12 @@ class PerformanceMetrics():
             self.epoch = performance_dict['epoch']
             self.completed_datetime_utc = parser.parse(performance_dict['completed_datetime_utc'])
             self.completed_datetime_sydney = parser.parse(performance_dict['completed_datetime_sydney'])
-            self.train = LabelMetrics(performance_dict['train'])
-            self.val = LabelMetrics(performance_dict['val'])
-            self.test = LabelMetrics(performance_dict['test'])
+            self.train = LabelMetrics(performance_dict['train'], split='train')
+            self.val = LabelMetrics(performance_dict['val'], split='val')
+            self.test = LabelMetrics(performance_dict['test'], split='test')
 
+    def __str__(self):
+        return f"Epoch: {self.epoch}, \nTrain: {self.train}, \nVal: {self.val}, \nTest: {self.test}"
     
     def assign_epoch(self, epoch):
         self.epoch = epoch
@@ -160,9 +163,13 @@ class PerformanceMetrics():
     
     def get_formatted_metrics_as_dict(self):
         formatted_dict = {}
-        formatted_dict.update(self.train.get_formatted_dict())
-        formatted_dict.update(self.val.get_formatted_dict())
-        formatted_dict.update(self.test.get_formatted_dict())
+        for key, value in self.train.get_formatted_dict().items():
+            formatted_dict[key] = value
+        for key, value in self.val.get_formatted_dict().items():
+            formatted_dict[key] = value
+        for key, value in self.test.get_formatted_dict().items():
+            formatted_dict[key] = value
+            
         return formatted_dict
     
     def to_dict(self):
@@ -184,7 +191,12 @@ class ProgressionMetrics():
             self.past_performance_metrics = [PerformanceMetrics(performance_dict=metric) for metric in performance_dict]
         
     def to_dict(self):
-        return [metric.to_dict() for metric in self.past_performance_metrics]
-        
-
+        result = []
+        for i, metric in enumerate(self.past_performance_metrics):
+            try:
+                result.append(metric.to_dict())
+            except Exception as e:
+                print(f"Error converting metric to dict at index {i}: {e}")
+                print(f"Metric: {metric}")
+        return result
         

@@ -58,7 +58,9 @@ class ResNet50(torch.nn.Module):
             num_classes_state (int): The number of unique classes for the state head
         """
         super(ResNet50, self).__init__()
+        
         logger.info(f'Initialising ResNet50 model with {num_classes_crop} crop classes and {num_classes_state} state classes')
+        
         # Check if GPU is available
         self.device = torch.device(
             'cuda' if torch.cuda.is_available() else 'cpu')
@@ -80,6 +82,7 @@ class ResNet50(torch.nn.Module):
             torch.nn.Module: The model with new heads
         """
         num_ftres = self.resnet.fc.in_features
+        self.resnet.fc = torch.nn.Identity()
         
         self.crop_fc = torch.nn.Linear(num_ftres, num_classes_crop)
         self.state_fc = torch.nn.Linear(num_ftres, num_classes_state)
@@ -98,18 +101,13 @@ class ResNet50(torch.nn.Module):
             tuple: A tuple containing the crop and state tensors
         """
         x = x.to(self.device)  # Move input to GPU if available
-        print(f"Input shape: {x.shape}")
         
         # Forward pass through the ResNet backbone
         x = self.resnet(x)
-        print(f"After ResNet shape: {x.shape}")
 
         # Forward pass through the crop and state heads
         crop_out = self.crop_fc(x)
         state_out = self.state_fc(x)
-
-        print(f"Crop output shape: {crop_out.shape}")
-        print(f"State output shape: {state_out.shape}")
         
         # Return the crop and state tensors
         return crop_out, state_out  # TODO: Add to report that the forward pass will return the crop and state tensors
@@ -140,4 +138,4 @@ class ResNet50(torch.nn.Module):
         # Save the model meta data
         torch.save(model_meta.to_dict(), os.path.join(directory_path, f'{filename}.meta'))
         
-        
+    

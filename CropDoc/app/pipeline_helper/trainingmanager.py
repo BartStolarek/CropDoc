@@ -128,7 +128,7 @@ class TrainingManager():
                     self.performance_metrics.assign_epoch(i)
                     self._save_checkpoint(epoch=i)
                     last_checkpointed_epoch = i
-
+            
             # Update the progress bar with the metrics
             epochs_progress.set_postfix(epoch_metrics.get_formatted_metrics_as_dict())
 
@@ -157,7 +157,8 @@ class TrainingManager():
         self.model.train()
 
         # Feed the model the training data, and set feeder to train
-        train_metrics = self._feed_model(self.train_dataloader, train=True)
+        train_metrics = self._feed_model(self.train_dataloader, split='train')
+        train_metrics.assign_split('train')
         epoch_metrics.train = train_metrics
 
         # Set the model to evaluation/validation mode
@@ -167,7 +168,8 @@ class TrainingManager():
         with torch.no_grad():
 
             # Feed the model the validation data
-            val_metrics = self._feed_model(self.val_dataloader)
+            val_metrics = self._feed_model(self.val_dataloader, split='val')
+            val_metrics.assign_split('val')
             epoch_metrics.val = val_metrics
 
         # If using GPU clear the cache
@@ -176,7 +178,7 @@ class TrainingManager():
 
         return epoch_metrics
     
-    def _feed_model(self, dataloader, train=False) -> LabelMetrics:
+    def _feed_model(self, dataloader, split) -> LabelMetrics:
         """ Feed the model with the data from the dataloader to train/validate/test the model
 
         Args:
@@ -186,7 +188,10 @@ class TrainingManager():
         Returns:
             LabelMetrics: A object containing the performance metrics for this epoch, including a list of batch metrics.
         """
-
+        splits = ['train', 'val', 'test']
+        if split not in splits:
+            raise ValueError(f"Split must be one of {splits}, but got {split}")
+        
         # Initialise metrics for whole epoch (total)
         loss_crop_total = 0
         loss_state_total = 0
@@ -201,7 +206,7 @@ class TrainingManager():
         all_state_labels = []
 
         # Initialise metrics for just one dataset split, which will need crop and state metrics
-        label_metrics = LabelMetrics()
+        label_metrics = LabelMetrics(split=split)
 
         # Create the batch progress bar
         self.terminal_width = shutil.get_terminal_size().columns
@@ -215,7 +220,7 @@ class TrainingManager():
         for i, (images, crop_labels, state_labels) in batch_progress:
 
             # If training, set the optimiser to zero the gradients because we are about to calculate new gradients
-            if train:
+            if split == 'train':
                 self.optimiser.zero_grad()
 
             # Move data to GPU if available
@@ -233,7 +238,7 @@ class TrainingManager():
                                                     state_labels)
             loss_combined_batch = loss_crop_batch + loss_state_batch
 
-            if train:
+            if split == 'train':
                 # Backward pass
                 loss_crop_batch.backward(retain_graph=True)
                 loss_state_batch.backward()
@@ -283,18 +288,18 @@ class TrainingManager():
             zero_division=0)
         
         # Create a metrics object for crop
-        label_metrics.crop = Metrics()
+        label_metrics.crop = Metrics(label='crop', split=split)
         label_metrics.crop.loss = loss_crop_total / len(dataloader) if len(dataloader) > 0 else 0
         label_metrics.crop.accuracy = correct_crop_total / count_total if count_total > 0 else 0
         label_metrics.crop.correctly_classified = correct_crop_total
-        label_metrics.state.total_classifications = count_total
+        label_metrics.crop.total_classifications = count_total
         label_metrics.crop.confusion_matrix = crop_confusion_matrix.tolist()
         label_metrics.crop.precision = crop_precision
         label_metrics.crop.recall = crop_recall
         label_metrics.crop.f1_score = crop_f1
         
         # Create a metrics object for state
-        label_metrics.state = Metrics()
+        label_metrics.state = Metrics(label='state', split=split)
         label_metrics.state.loss = loss_state_total / len(dataloader) if len(dataloader) > 0 else 0
         label_metrics.state.accuracy = correct_state_total / count_total if count_total > 0 else 0
         label_metrics.state.correctly_classified = correct_state_total
@@ -314,7 +319,7 @@ class TrainingManager():
             scheduler=self.scheduler,
             model_meta=self.model_manager.model_meta,
             checkpoint_directory=self.model_manager.checkpoint_directory,
-            file_name=self.model_manager.name_version
+            filename=self.model_manager.name_version
         )
     
     def check_if_val_metrics_improved(self, new_metrics: PerformanceMetrics):
@@ -327,13 +332,13 @@ class TrainingManager():
             
         """
         # Get the change between best validation metrics and the new metrics for loss
-        crop_loss_change = self.performance_metrics.val.crop.change_percentage(new_metrics.val, 'crop', 'loss')
-        state_loss_change = self.performance_metrics.val.state.change_percentage(new_metrics.val, 'state', 'loss')
+        crop_loss_change = (new_metrics.val.crop.loss / self.performance_metrics.val.crop.loss) - 1
+        state_loss_change = (new_metrics.val.state.loss / self.performance_metrics.val.state.loss) - 1
         average_loss_change = abs((crop_loss_change + state_loss_change) / 2)
         
         # Get the change between best validation metrics and the new metrics for accuracy
-        crop_accuracy_change = self.performance_metrics.val.crop.change_percentage(new_metrics.val, 'crop', 'accuracy')
-        state_accuracy_change = self.performance_metrics.val.state.change_percentage(new_metrics.val, 'state', 'accuracy')
+        crop_accuracy_change = (new_metrics.val.crop.accuracy / self.performance_metrics.val.crop.accuracy) - 1
+        state_accuracy_change = (new_metrics.val.state.accuracy / self.performance_metrics.val.state.accuracy) - 1
         average_accuracy_change = abs((crop_accuracy_change + state_accuracy_change) / 2)
         
         # Average out both averages
