@@ -5,6 +5,7 @@ from app.pipeline_helper.model import ResNet50
 from app.pipeline_helper.datasetadapter import Structure
 from app.pipeline_helper.numpyarraymanager import NumpyArrayManager
 from app.pipeline_helper.model import ModelMeta
+from app.pipeline_helper.metricstrackers import ProgressionMetrics, PerformanceMetrics
 from loguru import logger
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
@@ -72,7 +73,9 @@ class ModelManager:
             'crops': self.data_structure.crops,
             'states': self.data_structure.states,
             'name': self.config['pipeline']['model'],
-            'version': self.config['pipeline']['version']
+            'version': self.config['pipeline']['version'],
+            'progression_metrics': ProgressionMetrics(),
+            'performance_metrics': PerformanceMetrics()
         })
         logger.info(f"Created new model {self.name_version} with data structure crops: {len(self.data_structure.crops)} and states: {len(self.data_structure.states)}")
         if self.eval:
@@ -122,6 +125,11 @@ class ModelManager:
     def get_model(self):
         return self.model
     
-    def update_performance(self, performance):
-        pass
+    def get_number_of_trained_epochs(self):
+        return self.model_meta.epochs
 
+    def get_progress_metrics_tracker(self):
+        return self.model_meta.progression_metrics
+    
+    def get_performance_metrics_tracker(self):
+        return self.model_meta.performance_metrics

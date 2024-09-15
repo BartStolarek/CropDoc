@@ -126,8 +126,8 @@ class Dataset():
         img = Image.open(img_path).convert('RGB')
 
         # Convert crop and state to numeric labels
-        crop_label = self.crops.index(crop)
-        state_label = self.states.index(state)
+        crop_label = np.where(self.crops == crop)[0][0]
+        state_label = np.where(self.states == state)[0][0]
 
         return img, crop_label, state_label
     

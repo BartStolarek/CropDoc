@@ -1082,7 +1082,7 @@ class Pipeline():
             )
         # Get the average loss change percentage, convert to absolute value for better comparison
         average_loss_change = abs(
-            (val_loss_crop_change + val_loss_state_change) / 4)
+            (val_loss_crop_change + val_loss_state_change) / 2)
 
         # Calculate the change percentage for each loss metric from the best metric to the currently observed metric set
         try:
@@ -1102,10 +1102,10 @@ class Pipeline():
 
         # Get the average accuracy change percentage, convert to absolute value for better comparison
         average_accuracy_change = abs(
-            (val_accuracy_crop_change + val_accuracy_state_change) / 4)
+            (val_accuracy_crop_change + val_accuracy_state_change) / 2)
 
         # Get the average of the average loss and accuracy change
-        average = (average_loss_change + average_accuracy_change) / 2
+        average = (average_loss_change + average_accuracy_change) / 4
 
         # If the average is greater than 0, then the current epoch is better than the best epoch
         if average > 0:

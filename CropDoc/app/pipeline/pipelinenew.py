@@ -57,15 +57,15 @@ class Pipeline:
             train_data=train_dataset,
             train_transformers=train_transformers,
             val_transformers=val_transformers,
-            model=model,
+            model_manager=model_manager,
             crop_criterion=crop_criterion,
             state_criterion=state_criterion,
             optimiser=optimiser,
             scheduler=scheduler
         )
         
-        performance = training_manager.start_training()
-        model_manager.update_performance(performance)
+        training_manager.start_training()
+        
         
         model_manager.save_model()
         optimiser_manager.save_optimiser()

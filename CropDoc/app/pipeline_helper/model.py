@@ -2,6 +2,8 @@ import torch
 import torchvision
 import os
 import numpy as np
+from app.pipeline_helper.metricstrackers import PerformanceMetrics, ProgressionMetrics
+from loguru import logger
 
 class ModelMeta:
     def __init__(self, meta_dict: dict):
@@ -10,6 +12,14 @@ class ModelMeta:
         self.states = np.array(meta_dict['states'])
         self.name = meta_dict['name']
         self.version = meta_dict['version']
+        if isinstance(meta_dict['performance_metrics'], dict):
+            self.performance_metrics = PerformanceMetrics(performance_dict=meta_dict['performance_metrics'])
+        else:
+            self.performance_metrics = meta_dict['performance_metrics']
+        if isinstance(meta_dict['progression_metrics'], list):
+            self.progression_metrics = ProgressionMetrics(performance_dict=meta_dict['progression_metrics'])
+        else:
+            self.progression_metrics = meta_dict['progression_metrics']
          
     def to_dict(self):
         return {
@@ -17,7 +27,9 @@ class ModelMeta:
             'crops': self.crops.tolist(),  # Convert NumPy array to list
             'states': self.states.tolist(),  # Convert NumPy array to list
             'name': self.name,
-            'version': self.version
+            'version': self.version,
+            'performance_metrics': self.performance_metrics.to_dict(),
+            'progression_metrics': self.progression_metrics.to_dict()
         }
     
     def __str__(self):
@@ -46,7 +58,7 @@ class ResNet50(torch.nn.Module):
             num_classes_state (int): The number of unique classes for the state head
         """
         super(ResNet50, self).__init__()
-
+        logger.info(f'Initialising ResNet50 model with {num_classes_crop} crop classes and {num_classes_state} state classes')
         # Check if GPU is available
         self.device = torch.device(
             'cuda' if torch.cuda.is_available() else 'cpu')
@@ -68,6 +80,7 @@ class ResNet50(torch.nn.Module):
             torch.nn.Module: The model with new heads
         """
         num_ftres = self.resnet.fc.in_features
+        
         self.crop_fc = torch.nn.Linear(num_ftres, num_classes_crop)
         self.state_fc = torch.nn.Linear(num_ftres, num_classes_state)
         
@@ -85,18 +98,23 @@ class ResNet50(torch.nn.Module):
             tuple: A tuple containing the crop and state tensors
         """
         x = x.to(self.device)  # Move input to GPU if available
-
+        print(f"Input shape: {x.shape}")
+        
         # Forward pass through the ResNet backbone
         x = self.resnet(x)
+        print(f"After ResNet shape: {x.shape}")
 
         # Forward pass through the crop and state heads
         crop_out = self.crop_fc(x)
         state_out = self.state_fc(x)
 
+        print(f"Crop output shape: {crop_out.shape}")
+        print(f"State output shape: {state_out.shape}")
+        
         # Return the crop and state tensors
         return crop_out, state_out  # TODO: Add to report that the forward pass will return the crop and state tensors
 
-    def save_checkpoint(self, epoch, optimizer, scheduler, model_meta, filename, checkpoint_directory):
+    def save_checkpoint(self, epoch, optimiser, scheduler, model_meta, filename, checkpoint_directory):
         """ Save the model checkpoint
 
         Args:
@@ -111,15 +129,15 @@ class ResNet50(torch.nn.Module):
             os.makedirs(directory_path, exist_ok=True)
 
         # Save the model checkpoint
-        torch.save(self.state_dict(), os.path.join(directory_path, filename))
+        torch.save(self.state_dict(), os.path.join(directory_path, f'{filename}.pth'))
         
-        # Save the optimizer checkpoint
-        torch.save(optimizer.state_dict(), os.path.join(directory_path, 'optimizer.pth'))
+        # Save the optimiser checkpoint
+        torch.save(optimiser.state_dict(), os.path.join(directory_path, 'optimiser.pth'))
         
         # Save the scheduler checkpoint
         torch.save(scheduler.state_dict(), os.path.join(directory_path, 'scheduler.pth'))
         
         # Save the model meta data
-        torch.save(model_meta.to_dict(), os.path.join(directory_path, 'meta.pth'))
+        torch.save(model_meta.to_dict(), os.path.join(directory_path, f'{filename}.meta'))
         
         
