@@ -131,11 +131,6 @@ class Structure():
             states=new_states
         )
         
-        
-        
-        
-
-
 class BaseDataset(torch.utils.data.Dataset, ABC):
     def __init__(self, root: str, name: str, test_split: float = None):
         self.roots = [root]
@@ -234,7 +229,7 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
         
         # Check if the train and test crops have exact same crops
         if not np.array_equal(train_states, test_states):
-            raise ValueError(f"Train and test crops must be the same, there are different crops in the train and test splits: \nTrain Crops:\n{train_states}, \nTest Crops:\n{test_states}")
+            raise ValueError(f"Train and test states must be the same, there are different states in the train and test splits: \nTrain states:\n{train_states}, \nTest states:\n{test_states}")
         
 
         return train_states
@@ -361,6 +356,9 @@ class CropCCMTDataset(BaseDataset):
                         image_path = os.path.join(self.roots[0], crop, split, state, image_file)
                         
                         crop_label = crop.title()
+                        
+                        # Remove digits from state label
+                        state_label = re.sub(r'\d+', '', state)
                         
                         state_label = crop_label + '-Healthy' if 'healthy' in state.lower() else state.title()
                         
