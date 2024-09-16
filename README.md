@@ -162,6 +162,8 @@ chmod +x run_apptainer.sh
 ./build_apptainer.sh
 ```
 
+Note: if prompted to overwrite the existing image, type 'y' and press Enter.
+
 4. Run the Apptainer containers (you can run this script again to restart the containers when only the code has changed):
 
 ```
