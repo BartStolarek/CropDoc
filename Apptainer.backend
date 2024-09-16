@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: python:3.10.11-slim
+From: nvidia/cuda:12.2.0-base-ubuntu22.04
 
 %setup
     mkdir -p ${SINGULARITY_ROOTFS}/CropDoc
@@ -8,8 +8,20 @@ From: python:3.10.11-slim
     ./CropDoc/requirements.txt /CropDoc/requirements.txt
 
 %post
+    apt-get update && apt-get install -y \
+        python3 \
+        python3-pip \
+        python3-venv \
+        build-essential \
+        && rm -rf /var/lib/apt/lists/*
+
+    ln -s /usr/bin/python3 /usr/local/bin/python
+    ln -s /usr/bin/pip3 /usr/local/bin/pip
+
     cd /CropDoc
-    pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+    python -m venv /venv
+    . /venv/bin/activate
+    pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu122
     pip install -r requirements.txt
 
 %environment
@@ -19,9 +31,22 @@ From: python:3.10.11-slim
     export FLASK_ENV=development
     export LOGGING_LEVEL=DEBUG
     export ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5000
+    export PATH="/venv/bin:/usr/local/cuda-12.2/bin:$PATH"
+    export LD_LIBRARY_PATH="/usr/local/cuda-12.2/lib64:$LD_LIBRARY_PATH"
 
 %runscript
-    cd /CropDoc && python manage.py runserver --reload
+    . /venv/bin/activate
+    cd /CropDoc
+    echo "Debug: Checking CUDA and GPU availability"
+    if [ -x "$(command -v nvidia-smi)" ]; then
+        echo "CUDA is available. Using GPU."
+        nvidia-smi
+        python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('CUDA version:', torch.version.cuda); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'); print('Detailed CUDA info:', torch.cuda.get_device_properties(0) if torch.cuda.is_available() else 'None')"
+    else
+        echo "CUDA is not available. Using CPU."
+    fi
+    python manage.py runserver --reload
 
 %startscript
+    . /venv/bin/activate
     cd /CropDoc && python manage.py runserver --reload

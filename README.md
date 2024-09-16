@@ -2,13 +2,17 @@
 
 ## Introduction
 
-This project is a part of the course "Algorithms in Machine Learning" at the University of New England, Armidale Australia. The goal of this project is to detect the crop and its state. The state of the crop can be 'healthy' or one of the various diseases or pest infestations associated with that crop. The dataset used for this project is the "Dataset for Crop Pest and Disease Detection" dataset which contains images of crops in different states. The dataset can be downloaded from [here](https://data.mendeley.com/datasets/bwh3zbpkpv/1).
+This project is a part of the course "Information Technology Project" at the University of New England, Armidale Australia. The goal of this project is to detect the crop and its state. The state of the crop can be 'healthy' or one of the various diseases or pest infestations associated with that crop. The dataset used for this project is the "Dataset for Crop Pest and Disease Detection" dataset which contains images of crops in different states. The dataset can be downloaded from [here](https://data.mendeley.com/datasets/bwh3zbpkpv/1).
 
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
 - Docker
 - Docker Compose
+
+or
+
+- apptainer (if you are not using Docker) - see installation instructions below in the Apptainer section
 
 If you do not have them installed you can find instructions to install them [here](https://docs.docker.com/get-docker/).
 

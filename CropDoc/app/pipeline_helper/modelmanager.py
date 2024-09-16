@@ -75,11 +75,11 @@ class ModelManager:
             model = MODEL_CLASSES[self.name](len(model_meta.crops), len(model_meta.states))
             
             if self.eval:
-                model.load_state_dict(torch.load(self.model_path, map_location='cpu', weights_only=True))
+                model.load_state_dict(torch.load(self.model_path, map_location='cpu', weights_only=False))
                 model.eval()
                 logger.info('Model loaded in evaluation mode')
             else:
-                model.load_state_dict(torch.load(self.model_path, weights_only=True))
+                model.load_state_dict(torch.load(self.model_path, weights_only=False))
                 model.train()
                 logger.info('Model loaded in training mode')
             logger.info(f"Loaded model {self.name_version} with data structure crops: {len(model_meta.crops)} and states: {len(model_meta.states)}")
