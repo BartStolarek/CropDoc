@@ -12,7 +12,7 @@ datasets:
     test_split: 0.2
     active: False
 train:
-  epochs: 2
+  epochs: 50
   checkpoint_interval: 5 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)
   validation_split: 0.2
   batch_size: 512
