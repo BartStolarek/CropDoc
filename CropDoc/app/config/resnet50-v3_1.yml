@@ -1,0 +1,41 @@
+pipeline:
+  model: ResNet50
+  version: 3.1
+datasets:
+  - name: CropCCMTDataset
+    class: CropCCMTDataset  # Class names are; CropCCMTDataset, PlantVillageDataset
+    root: data/datasets/CCMT Dataset-Augmented  # Dataset directories include; CCMT Dataset-Augmented, plantvillage/custom
+    active: True
+  - name: PlantVillageDataset
+    class: PlantVillageDataset
+    root: data/datasets/plantvillage/color
+    test_split: 0.2
+    active: True
+train:
+  epochs: 50
+  checkpoint_interval: 5 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)
+  validation_split: 0.2
+  batch_size: 384  # (3 * 128)
+  num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
+  learning_rate: 0.005
+  lr_scheduler:
+    active: ReduceLROnPlateau
+    StepLR:
+      step_size: 30
+      gamma: 0.3
+    ReduceLROnPlateau:
+      mode: min
+      factor: 0.3  # Factor by which the learning rate will be reduced. new_lr = lr * factor
+      patience: 10  # Number of epochs with no improvement after which learning rate will be reduced
+      threshold: 0.001  # Threshold for measuring the new optimum, to only focus on significant changes
+  loss_function: # List of loss functions can be found here: https://pytorch.org/docs/stable/nn.html#loss-functions  
+    type: CrossEntropyLoss
+test:
+  batch_size: 64
+  num_workers: 1
+predict:
+  crop:
+    confidence_threshold: 0.2
+  state:
+    confidence_threshold: 0.2
+
