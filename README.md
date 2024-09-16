@@ -148,24 +148,32 @@ apptainer --version
 ## Using Apptainer
 
 If you're using Apptainer instead of Docker, follow these steps:
-1. Ensure Apptainer is installed, and `run_apptainer.sh` is executable:
+1. Ensure Apptainer is installed
 
+2. Ensure build script and run script are executable:
 ```
+chmod +x build_apptainer.sh
 chmod +x run_apptainer.sh
 ```
 
-2. Build and run the Apptainer containers:
+3. Build the containers if they are not built or if you have made changes to dependencies, packages or docker files:
+
+```
+./build_apptainer.sh
+```
+
+4. Run the Apptainer containers (you can run this script again to restart the containers when only the code has changed):
 
 ```
 ./run_apptainer.sh
 ```
 
-3. Access the application:
+5. Access the application:
 
 - Frontend: [http://localhost:3000](http://localhost:3000)
 - Backend: [http://localhost:5000](http://localhost:5000)
 
-4. To stop the application, use Ctrl+C int he terminal where you ran the `run_apptainer.sh` script.
+6. To stop the application, use Ctrl+C int he terminal where you ran the `run_apptainer.sh` script.
 
 ## Custom Backend Commands (Command Line Interface)
 
