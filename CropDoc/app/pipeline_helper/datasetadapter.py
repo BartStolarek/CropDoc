@@ -357,10 +357,12 @@ class CropCCMTDataset(BaseDataset):
                         
                         crop_label = crop.title()
                         
-                        # Remove digits from state label
-                        state_label = re.sub(r'\d+', '', state)
+                        
                         
                         state_label = crop_label + '-Healthy' if 'healthy' in state.lower() else state.title()
+                        
+                        # Remove digits from state label
+                        state_label = re.sub(r'\d+', '', state)
                         
                         if 'test' in split:
                             test_objects.append((image_path, (crop_label, state_label)))
