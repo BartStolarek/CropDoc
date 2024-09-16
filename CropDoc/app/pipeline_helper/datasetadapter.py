@@ -213,8 +213,8 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
         Returns:
             np.ndarray: A numpy array of unique crops
         """
-        train_crops = np.unique(self.train_labels[:, 0])
-        test_crops = np.unique(self.test_labels[:, 0])
+        train_crops = np.sort(np.unique(self.train_labels[:, 0]))
+        test_crops = np.sort(np.unique(self.test_labels[:, 0]))
         
         # Check if the train and test crops have exact same crops
         if not np.array_equal(train_crops, test_crops):

@@ -4,6 +4,12 @@ from loguru import logger
 class NumpyArrayManager:
     
     @staticmethod
+    def check_arrays_are_subset(a: np.array, b: np.array) -> bool:
+        if not isinstance(a, np.ndarray) or not isinstance(b, np.ndarray):
+            raise TypeError(f"Both inputs must be numpy arrays, got {type(a)} and {type(b)}")
+        return set(a.flat).issubset(set(b.flat))
+    
+    @staticmethod
     def check_arrays_are_exact(a: np.array, b: np.array) -> bool:
         if not isinstance(a, np.ndarray) or not isinstance(b, np.ndarray):
             raise TypeError(f"Both inputs must be numpy arrays, got {type(a)} and {type(b)}")

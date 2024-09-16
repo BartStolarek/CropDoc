@@ -332,13 +332,13 @@ class TrainingManager():
             
         """
         # Get the change between best validation metrics and the new metrics for loss
-        crop_loss_change = (new_metrics.val.crop.loss / self.performance_metrics.val.crop.loss) - 1
-        state_loss_change = (new_metrics.val.state.loss / self.performance_metrics.val.state.loss) - 1
+        crop_loss_change = self._get_change_percentage(new_metrics.val.crop.loss, self.performance_metrics.val.crop.loss)
+        state_loss_change = self._get_change_percentage(new_metrics.val.state.loss, self.performance_metrics.val.state.loss)
         average_loss_change = abs((crop_loss_change + state_loss_change) / 2)
         
         # Get the change between best validation metrics and the new metrics for accuracy
-        crop_accuracy_change = (new_metrics.val.crop.accuracy / self.performance_metrics.val.crop.accuracy) - 1
-        state_accuracy_change = (new_metrics.val.state.accuracy / self.performance_metrics.val.state.accuracy) - 1
+        crop_accuracy_change = self._get_change_percentage(new_metrics.val.crop.accuracy, self.performance_metrics.val.crop.accuracy)
+        state_accuracy_change = self._get_change_percentage(new_metrics.val.state.accuracy, self.performance_metrics.val.state.accuracy)
         average_accuracy_change = abs((crop_accuracy_change + state_accuracy_change) / 2)
         
         # Average out both averages
@@ -348,6 +348,13 @@ class TrainingManager():
             return True
         
         return False
+    
+    def _get_change_percentage(self, new, previous):
+        try:
+            return (new / previous) - 1
+        except ZeroDivisionError as e:
+            logger.debug(f"ZeroDivisionError in _get_change_percentage, new metric: {new} and previous metric: {previous} - {e}")
+            return 0
     
     def update_model_meta(self):
         self.model_manager.model_meta.epochs += self.epochs_to_train

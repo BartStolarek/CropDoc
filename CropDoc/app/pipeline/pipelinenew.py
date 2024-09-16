@@ -71,12 +71,24 @@ class Pipeline:
         optimiser_manager.save_optimiser()
         scheduler_manager.save_scheduler()
         
-        
-    
-        
-        
     def test(self):
-        pass
+        
+        # Datasets
+        dataset_manager = DatasetManager(config=self.config, output_directory=self.output_directory)
+        test_dataset = dataset_manager.get_test_dataset()
+        
+        # Transformers
+        transformer_manager = TransformerManager()
+        test_transformers = transformer_manager.get_test_transformers()
+        
+        # Models
+        model_manager = ModelManager(
+            config=self.config,
+            output_directory=self.output_directory,
+            data_structure=dataset_manager.structure,
+            eval=True
+        )
+        
 
     def predict(self):
         pass
