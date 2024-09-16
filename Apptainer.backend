@@ -9,6 +9,7 @@ From: python:3.10.11-slim
 
 %post
     cd /CropDoc
+    pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
     pip install -r requirements.txt
 
 %environment
