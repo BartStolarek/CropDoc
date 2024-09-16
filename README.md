@@ -28,6 +28,7 @@ COSC320-GROUPD/
 └── docker-compose.dev.yml
 ```
 
+# Docker
 ## Docker Setup
 
 ### Development Workflow/Mode
@@ -113,6 +114,78 @@ The backend application includes several custom commands that can be run using t
 
     Config file is a yml file that contains the configuration for the training process, located in CropDoc/app/config/ directory, just use the name of the file, not the full path.
     Optionally, you can add in additional key word (kwargs) arguments to the train command by adding the flag `-k` or `--kwargs`.
+
+# Apptrainer
+## Installing Apptainer (Alternative to Docker)
+
+If you don't have access to Docker (e.g., on a university server), you can use Apptainer as an alternative. Here are the steps to install Apptainer:
+1. Install the rpm2cpio tool (if not already available):
+
+```
+sudo apt-get update
+sudo apt-get install rpm2cpio
+```
+
+2. Install Apptainer:
+
+```
+curl -s https://raw.githubusercontent.com/apptainer/apptainer/main/tools/install-unprivileged.sh | \
+    bash -s - ~/apptainer
+```
+
+3. Add Appttainer to your PATH:
+```
+echo 'export PATH=$PATH:~/apptainer/bin' >> ~/.zshrc
+source ~/.zshrc
+```
+Note: If you're using bash instead of zsh, replace .zshrc with .bashrc in the above commands.
+
+4. Verify Installation:
+```
+apptainer --version
+```
+
+## Using Apptainer
+
+If you're using Apptainer instead of Docker, follow these steps:
+1. Ensure Apptainer is installed, and `run_apptainer.sh` is executable:
+
+```
+chmod +x run_apptainer.sh
+```
+
+2. Build and run the Apptainer containers:
+
+```
+./run_apptainer.sh
+```
+
+3. Access the application:
+
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend: [http://localhost:5000](http://localhost:5000)
+
+4. To stop the application, use Ctrl+C int he terminal where you ran the `run_apptainer.sh` script.
+
+## Custom Backend Commands (Command Line Interface)
+
+To run customer backend commands:
+
+1. Open a new terminal window after using the `run_apptainer.sh` script.
+
+2. Run the backend container interactively:
+
+```
+apptainer shell --nv --bind ./CropDoc:/CropDoc --pwd /CropDoc cropdoc-backend.sif
+```
+
+3. Once inside the container, you can run the same commands as listed in the Docker section
+
+4. Exit the container when done:
+
+```
+exit
+```
 
 ## Application
 

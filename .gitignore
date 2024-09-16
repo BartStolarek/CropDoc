@@ -43,6 +43,27 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Apptainer specific ignores
+*.sif
+*.simg
+*.img
+apptainer-cache/
+apptainer_cache/
+.singularity.d/
+.apptainer.d/
+
+# Ignore temporary build files
+*.tmp
+
+# Ignore Apptainer build logs
+apptainer-build-*.log
+
+# Ignore any local Apptainer configuration files
+apptainer.conf
+
+# Ignore any Apptainer keyring files
+*.pem
+
 # Unit test / coverage reports
 htmlcov/
 .tox/
