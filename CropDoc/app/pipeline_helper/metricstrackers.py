@@ -40,11 +40,11 @@ class Metrics:
       
     def get_formatted_dict(self):
         try:
-            if self.split is 'train':
+            if self.split == 'train':
                 split_letter = 'T'
-            elif self.split is 'val':
+            elif self.split == 'val':
                 split_letter = 'V'
-            elif self.split is 'test':
+            elif self.split == 'test':
                 split_letter = 'TE'
 
             label_letter = self.label[0].upper()

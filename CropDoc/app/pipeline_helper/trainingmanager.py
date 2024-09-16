@@ -353,4 +353,4 @@ class TrainingManager():
         self.model_manager.model_meta.epochs += self.epochs_to_train
         self.model_manager.model_meta.performance_metrics.train = self.performance_metrics.train
         self.model_manager.model_meta.performance_metrics.val = self.performance_metrics.val
-        self.model_manager.model_meta.progression_metrics.past_performance_metrics.append(self.progression_metrics.past_performance_metrics)
+        self.model_manager.model_meta.progression_metrics.past_performance_metrics.extend(self.progression_metrics.past_performance_metrics)
