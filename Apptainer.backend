@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: nvidia/cuda:12.2.0-base-ubuntu22.04
+From: nvidia/cuda:12.0.0-base-ubuntu22.04
 
 %setup
     mkdir -p ${SINGULARITY_ROOTFS}/CropDoc
@@ -13,6 +13,7 @@ From: nvidia/cuda:12.2.0-base-ubuntu22.04
         python3-pip \
         python3-venv \
         build-essential \
+        nvidia-cuda-toolkit \
         && rm -rf /var/lib/apt/lists/*
 
     ln -s /usr/bin/python3 /usr/local/bin/python
@@ -21,7 +22,7 @@ From: nvidia/cuda:12.2.0-base-ubuntu22.04
     cd /CropDoc
     python -m venv /venv
     . /venv/bin/activate
-    pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu122
+    pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
     pip install -r requirements.txt
 
 %environment
@@ -31,17 +32,15 @@ From: nvidia/cuda:12.2.0-base-ubuntu22.04
     export FLASK_ENV=development
     export LOGGING_LEVEL=DEBUG
     export ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5000
-    export PATH="/venv/bin:/usr/local/cuda-12.2/bin:$PATH"
-    export LD_LIBRARY_PATH="/usr/local/cuda-12.2/lib64:$LD_LIBRARY_PATH"
+    export PATH="/venv/bin:/usr/local/cuda/bin:$PATH"
+    export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
 
 %runscript
     . /venv/bin/activate
     cd /CropDoc
-    echo "Debug: Checking CUDA and GPU availability"
     if [ -x "$(command -v nvidia-smi)" ]; then
         echo "CUDA is available. Using GPU."
-        nvidia-smi
-        python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('CUDA version:', torch.version.cuda); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'); print('Detailed CUDA info:', torch.cuda.get_device_properties(0) if torch.cuda.is_available() else 'None')"
+        python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('CUDA version:', torch.version.cuda); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None')"
     else
         echo "CUDA is not available. Using CPU."
     fi
