@@ -1,18 +1,24 @@
 Bootstrap: docker
 From: node:20-slim
 
-%post
-    apt-get update && apt-get install -y curl
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+%setup
+    mkdir -p ${SINGULARITY_ROOTFS}/frontend
 
-    mkdir -p /frontend
+%files
+    ./frontend/package.json /frontend/package.json
+
+%post
     cd /frontend
+    if [ ! -f package.json ]; then
+        npm init -y
+    fi
+    npm install
 
 %environment
     export NEXT_PUBLIC_API_URL=http://localhost:5000
 
 %runscript
-    cd /frontend && npm install && npm run dev
+    cd /frontend && npm run dev
 
 %startscript
-    cd /frontend && npm install && npm run dev
+    cd /frontend && npm run dev
