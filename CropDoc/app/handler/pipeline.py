@@ -10,7 +10,7 @@ import shutil
 from collections import Counter
 
 from app.utility.file import get_file_method, load_yaml_file_as_dict
-from CropDoc.app.pipeline.pipeline import Pipeline
+from app.pipeline.pipeline import Pipeline
 
 
 def handle_train(pipeline_config: str):
