@@ -8,6 +8,7 @@ from app.pipeline_helper.trainingmanager import TrainingManager
 from app.pipeline_helper.dataloader import TransformDataLoader
 import os
 import torch
+from loguru import logger
 
 class Pipeline:
     def __init__(self, config):
@@ -66,6 +67,7 @@ class Pipeline:
         
         training_manager.start_training()
         
+        logger.info(f"Training complete with best validation: {model_manager.model_meta.performance_metrics}")
         
         model_manager.save_model()
         optimiser_manager.save_optimiser()
