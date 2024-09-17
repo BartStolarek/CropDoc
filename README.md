@@ -190,7 +190,7 @@ To run customer backend commands:
 2. Run the backend container interactively:
 
 ```
-apptainer shell --nv --bind ./CropDoc:/CropDoc --pwd /CropDoc cropdoc-backend.sif
+apptainer shell --nv --nvccli --writable-tmpfs --bind ./CropDoc:/CropDoc --pwd /CropDoc cropdoc-backend.sif
 ```
 
 3. Once inside the container, you can run the same commands as listed in the Docker section
