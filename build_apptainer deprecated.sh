@@ -43,7 +43,7 @@ if $build_backend; then
     echo "Building backend container..."
     if command -v nvidia-smi &> /dev/null; then
         echo "NVIDIA GPU detected. Building with CUDA support..."
-        apptainer build --fakeroot --nv --nvccli cropdoc-backend.sif Apptainer.backend
+        apptainer build --fakeroot --nv cropdoc-backend.sif Apptainer.backend
     else
         echo "No NVIDIA GPU detected. Building without CUDA support..."
         apptainer build --fakeroot cropdoc-backend.sif Apptainer.backend

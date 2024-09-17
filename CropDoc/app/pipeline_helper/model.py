@@ -61,15 +61,6 @@ class ResNet50(torch.nn.Module):
         
         logger.info(f'Initialising ResNet50 model with {num_classes_crop} crop classes and {num_classes_state} state classes')
         
-        # Check if GPU is available
-        self.device = torch.device(
-            'cuda' if torch.cuda.is_available() else 'cpu')
-
-        # Load the ResNet50 model with pre-trained weights
-        self.resnet = torchvision.models.resnet50(
-            weights=torchvision.models.ResNet50_Weights.DEFAULT
-        )  # TODO: Add to report why we used ResNet50 default weights and benefits
-
         self.create_new_head(num_classes_crop, num_classes_state)
 
         # Wrap only the resnet part in DataParallel
@@ -81,6 +72,16 @@ class ResNet50(torch.nn.Module):
         Returns:
             torch.nn.Module: The model with new heads
         """
+        
+        # Check if GPU is available
+        self.device = torch.device(
+            'cuda' if torch.cuda.is_available() else 'cpu')
+
+        # Load the ResNet50 model with pre-trained weights
+        self.resnet = torchvision.models.resnet50(
+            weights=torchvision.models.ResNet50_Weights.DEFAULT
+        )  # TODO: Add to report why we used ResNet50 default weights and benefits
+        
         num_ftres = self.resnet.fc.in_features
         self.resnet.fc = torch.nn.Identity()
         

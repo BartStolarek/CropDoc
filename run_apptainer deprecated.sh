@@ -6,15 +6,20 @@ if [ ! -f cropdoc-backend.sif ] || [ ! -f cropdoc-frontend.sif ]; then
     exit 1
 fi
 
+# Check for CUDA availability
+if command -v nvidia-smi &> /dev/null; then
+    apptainer run --nvccli --nv cropdoc-backend.sif
+    echo "NVIDIA GPU Detected, ran with CUDA support."
+else
+    apptainer run cropdoc-backend.sif
+    echo "No NVIDIA GPU detected, ran without CUDA support."
+fi
+
 # Run the backend
 echo "Starting backend..."
-if command -v nvidia-smi &> /dev/null; then
-    echo "NVIDIA GPU detected. Running backend with CUDA support"
-    apptainer run --nvccli --nv --writable-tmpfs --bind ./CropDoc:/CropDoc cropdoc-backend.sif &
-else
-    echo "No NVIDIA GPU detected. Running backend without CUDA support"
-    apptainer run -writeable-tmpfs --bind ./CropDoc:/CropDoc cropdoc-backend.sif &
-fi
+apptainer run $CUDA_FLAG --writable-tmpfs \
+    --bind ./CropDoc:/CropDoc \
+    cropdoc-backend.sif &
 
 # Run the frontend
 echo "Starting frontend..."
