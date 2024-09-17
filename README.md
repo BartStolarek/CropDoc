@@ -165,7 +165,7 @@ chmod +x run_apptainer.sh
 ```
 ./build_apptainer.sh
 ```
-
+Note: You can add --backend or --frontend flags to build only the backend or frontend containers respectively.
 Note: if prompted to overwrite the existing image, type 'y' and press Enter.
 
 4. Run the Apptainer containers (you can run this script again to restart the containers when only the code has changed):
