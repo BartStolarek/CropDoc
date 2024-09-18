@@ -1,12 +1,16 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from dateutil import parser
+from loguru import logger
 
 
 class Metrics:
     def __init__(self, epoch=None, split=None, label=None, metric_dict=None):
         if metric_dict is None:
-            self.epoch = epoch
+            if epoch is None or (isinstance(epoch, int) and epoch >= 0):
+                self.epoch = epoch
+            else:
+                raise ValueError("Epoch must be None, positive integer or zero")
             if split is None:
                 raise ValueError("Split cannot be None")
             self.split = split
@@ -36,7 +40,15 @@ class Metrics:
 
     
     def __str__(self):
-        return f"Epoch: {self.epoch}, Split: {self.split}, Label: {self.label}, Accuracy: {self.accuracy}, Loss: {self.loss}, Precision: {self.precision}, Recall: {self.recall}, F1 Score: {self.f1_score}, Correctly Classified: {self.correctly_classified}, Total Classifications: {self.total_classifications}"
+        return f"METRICS - Epoch ({self.epoch}), Split ({self.split}), Label ({self.label})\n" + \
+                f"\t\t\tAccuracy: {self.accuracy:.3f}\n" + \
+                f"\t\t\tLoss: {self.loss:.3f}\n" + \
+                f"\t\t\tPrecision: {self.precision:.3f}\n" + \
+                f"\t\t\tRecall: {self.recall:.3f}\n" + \
+                f"\t\t\tF1 Score: {self.f1_score:.3f}\n" + \
+                f"\t\t\tCorrectly Classified: {self.correctly_classified}\n" + \
+                f"\t\t\tTotal Classifications: {self.total_classifications}\n" + \
+                f"\t\t\tConfusion Matrix Length: {len(self.confusion_matrix)}\n"
       
     def get_formatted_dict(self):
         try:
@@ -82,22 +94,28 @@ class Metrics:
     def to_dict(self):
         return self.__dict__
 
-class LabelMetrics:
-    def __init__(self, epoch=None, split=None, label_dict=None):
+class SplitMetrics:
+    def __init__(self, epoch=None, split=None, split_dict=None):
 
-        if label_dict is None:
-            self.epoch = epoch
+        if split_dict is None:
+            if epoch is None or (isinstance(epoch, int) and epoch >= 0):
+                self.epoch = epoch
+            else:
+                raise ValueError("Epoch must be None, positive integer or zero")
             self.split = split
             self.crop = Metrics(epoch=epoch, split=split, label='crop')
             self.state = Metrics(epoch=epoch, split=split, label='state')
         else:
-            self.epoch = label_dict['epoch']
-            self.split = label_dict['split']
-            self.crop = Metrics(label_dict['crop'])
-            self.state = Metrics(label_dict['state'])
+            self.epoch = split_dict['epoch']
+            self.split = split_dict['split']
+            self.crop = Metrics(metric_dict=split_dict['crop'])
+            self.state = Metrics(metric_dict=split_dict['state'])
     
     def __str__(self):
-        return f"Epoch: {self.epoch}, Split: {self.split}, \nCrop: {self.crop}, \nState: {self.state}"
+        return f"SPLIT METRICS - Epoch ({self.epoch}), Split ({self.split})\n" + \
+               f"\t\t{self.crop}" + \
+               f"\t\t{self.state}"
+                
     
     def assign_split(self, split):
         self.split = split
@@ -133,24 +151,36 @@ class PerformanceMetrics():
     def __init__(self, epoch=None, performance_dict=None):
         
         if performance_dict is None:
-            self.epoch = epoch
+            if epoch is None or (isinstance(epoch, int) and epoch >= 0):
+                self.epoch = epoch
+            else:
+                raise ValueError("Epoch must be None, positive integer or zero")
             self.completed_datetime_utc = datetime.now(ZoneInfo('UTC'))
             self.completed_datetime_sydney = datetime.now(ZoneInfo('Australia/Sydney'))
-            self.train = LabelMetrics(epoch=epoch, split='train')
-            self.val = LabelMetrics(epoch=epoch, split='val')
-            self.test = LabelMetrics(epoch=epoch, split='test')
+            self.train = SplitMetrics(epoch=epoch, split='train')
+            self.val = SplitMetrics(epoch=epoch, split='val')
+            self.test = SplitMetrics(epoch=epoch, split='test')
         else:
+            logger.debug(f"Performance dict is for epoch {performance_dict['epoch']}")
             self.epoch = performance_dict['epoch']
+            if not (self.epoch is None or (isinstance(self.epoch, int) and self.epoch >= 0)):
+                raise ValueError(f"Epoch must be None, positive integer or zero - {self.epoch}")
             self.completed_datetime_utc = parser.parse(performance_dict['completed_datetime_utc'])
             self.completed_datetime_sydney = parser.parse(performance_dict['completed_datetime_sydney'])
-            self.train = LabelMetrics(performance_dict['train'], split='train')
-            self.val = LabelMetrics(performance_dict['val'], split='val')
-            self.test = LabelMetrics(performance_dict['test'], split='test')
+            self.train = SplitMetrics(split_dict=performance_dict['train'], split='train')
+            self.val = SplitMetrics(split_dict=performance_dict['val'], split='val')
+            self.test = SplitMetrics(split_dict=performance_dict['test'], split='test')
 
     def __str__(self):
-        return f"Epoch: {self.epoch}, \nTrain: {self.train}, \nVal: {self.val}, \nTest: {self.test}"
+        return f"\nPERFORMANCE METRICS - Epoch ({self.epoch})\n" + \
+               f"\t{self.train}" + \
+               f"\t{self.val}" + \
+               f"\t{self.test}"
+               
     
     def assign_epoch(self, epoch):
+        if isinstance(epoch, dict):
+            raise ValueError(f"Epoch cannot be a dictionary - {epoch}")
         self.epoch = epoch
         self.train.assign_epoch(epoch)
         self.val.assign_epoch(epoch)
@@ -189,7 +219,16 @@ class ProgressionMetrics():
             self.past_performance_metrics = []
         else:
             self.past_performance_metrics = [PerformanceMetrics(performance_dict=metric) for metric in performance_dict]
-        
+    
+    def __iter__(self):
+        return iter(self.past_performance_metrics)
+    
+    def __len__(self):
+        return len(self.past_performance_metrics)
+    
+    def __getitem__(self, idx):
+        return self.past_performance_metrics[idx]
+    
     def to_dict(self):
         result = []
         for i, metric in enumerate(self.past_performance_metrics):
@@ -199,4 +238,4 @@ class ProgressionMetrics():
                 print(f"Error converting metric to dict at index {i}: {e}")
                 print(f"Metric: {metric}")
         return result
-        
+

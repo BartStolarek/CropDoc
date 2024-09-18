@@ -10,6 +10,7 @@ from loguru import logger
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
 
+
 MODEL_CLASSES = {
     'ResNet50': ResNet50,
     # 'VGG16': VGG16,
@@ -19,7 +20,7 @@ MODEL_CLASSES = {
 
 class ModelManager:
     
-    def __init__(self, config, output_directory, data_structure: Structure, eval=False):
+    def __init__(self, config, output_directory, data_structure: Structure = None, eval=False):
         self.config = config
         
         self.name = config['pipeline']['model']
@@ -36,12 +37,17 @@ class ModelManager:
         # Load existing model
         self.model, self.model_meta = self.load_model()
         
+        if eval and self.model is None:
+            raise Exception("Model not found, cannot evaluate model")
+        
         # If no model was found, create a new model
         if self.model is None or self.model_meta is None:
             self.model, self.model_meta = self.create_model()
+            self.save_model()
+        
         
         # If model's structure (classes) is not consistent with dataset structure (classes)
-        if not self.consistent_classes_with_dataset(data_structure):
+        if data_structure and not eval and not self.consistent_classes_with_dataset(data_structure):
             logger.info("Model structure is not consistent with data structure for label's; crop and state")
             
             # Check if dataset structure is subset of model structure
@@ -50,9 +56,11 @@ class ModelManager:
             else:
                 logger.warning("Data structure is not a subset of model structure, meaning the data structure contains classes not present in the model, which will require replacing the models head")
                 self.replace_head()
+            self.save_model()
 
+        logger.info(f"Model Manager initialised with model {self.name_version}")
             
-        self.save_model()
+        
     
     
     
@@ -70,8 +78,10 @@ class ModelManager:
         return True
     
     def load_model(self):
+        logger.debug(f"Loading model from {self.model_path}")
         if os.path.exists(self.meta_path) and os.path.exists(self.model_path):
-            model_meta = ModelMeta(torch.load(self.meta_path, weights_only=False))
+            model_meta_dict = torch.load(self.meta_path, weights_only=False)
+            model_meta = ModelMeta(model_meta_dict)
             model = MODEL_CLASSES[self.name](len(model_meta.crops), len(model_meta.states))
             
             if self.eval:
@@ -84,7 +94,7 @@ class ModelManager:
                 logger.info('Model loaded in training mode')
             logger.info(f"Loaded model {self.name_version} with data structure crops: {len(model_meta.crops)} and states: {len(model_meta.states)}")
             logger.info(f"Model meta loaded: {model_meta}")
-            logger.debug(f"Model has performance metrics: {model_meta.performance_metrics}")
+            logger.debug(f"Model has performance metrics({type(model_meta.performance_metrics)}): {model_meta.performance_metrics}")
             return model, model_meta
         else:
             logger.info(f"Model not found at {self.model_path} or Model meta not found at {self.meta_path}")
@@ -139,10 +149,14 @@ class ModelManager:
             raise Exception("Invalid input. Exiting...")
     
     def save_model(self):
+        
+        model_dict = self.model.state_dict()
+        model_meta_dict = self.model_meta.to_dict()
+        
         if not os.path.exists(os.path.join(self.output_directory, 'model')):
             os.makedirs(os.path.join(self.output_directory, 'model'))
-        torch.save(self.model.state_dict(), self.model_path)
-        torch.save(self.model_meta.to_dict(), self.meta_path)
+        torch.save(model_dict, self.model_path)
+        torch.save(model_meta_dict, self.meta_path)
         logger.info(f"Model saved at {self.model_path}")
         logger.info(f"Model meta saved at {self.meta_path}")
         
@@ -157,3 +171,4 @@ class ModelManager:
     
     def get_performance_metrics_tracker(self):
         return self.model_meta.performance_metrics
+    

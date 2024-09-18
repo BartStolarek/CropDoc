@@ -17,13 +17,14 @@ DATASET_CLASSES = {
 
 class DatasetManager():
     
-    def __init__(self, config, output_directory):
+    def __init__(self, config, output_directory, load_existing_structure=True):
         self.output_directory = output_directory
         self.new_head_required = False
         
         # Load the datasets
         self.dataset = None
         count = 0
+        self.name = ''
         for dataset_config in config['datasets']:
             if not dataset_config['active']:
                 continue
@@ -41,7 +42,7 @@ class DatasetManager():
         
         # Check if an existing structure has been saved and update
         existing_structure = None
-        if os.path.exists(os.path.join(self.output_directory, 'structure', 'structure.json')):
+        if load_existing_structure and os.path.exists(os.path.join(self.output_directory, 'structure', 'structure.json')):
             existing_structure = self._load_existing_structure()
             logger.info(f"Existing saved structure found from past use - {existing_structure}")
             # Update the structure with new structure unique elements
@@ -93,23 +94,26 @@ class DatasetManager():
         labels = self.dataset.train_labels
         crops = self.dataset.crops
         states = self.dataset.states
-        return Dataset(images, labels, crops, states)
+        name = self.dataset.ids
+        return Dataset(images, labels, crops, states, name)
     
     def get_test_dataset(self):
         images = self.dataset.test_images
         labels = self.dataset.test_labels
         crops = self.dataset.crops
         states = self.dataset.states
-        return Dataset(images, labels, crops, states)
+        name = self.dataset.ids
+        return Dataset(images, labels, crops, states, name)
             
     
 class Dataset():
     
-    def __init__(self, images, labels, crops, states):
+    def __init__(self, images, labels, crops, states, name):
         self.images = images
         self.labels = labels
         self.crops = crops
         self.states = states
+        self.name = name
         
     def __getitem__(self, idx):
         """_summary_

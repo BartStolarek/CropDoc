@@ -27,6 +27,7 @@ PIL_SUPPORTED_EXTENSIONS = [
     'eps',  # Encapsulated Postscript (requires Ghostscript)
 ]
 
+
 class Structure():
     def __init__(self, train_images=None, train_labels=None, test_images=None, test_labels=None, crops=None, states=None):
         self.train_images = np.array(train_images) if not isinstance(train_images, np.ndarray) else train_images
@@ -130,7 +131,8 @@ class Structure():
             crops=new_crops,
             states=new_states
         )
-        
+
+     
 class BaseDataset(torch.utils.data.Dataset, ABC):
     def __init__(self, root: str, name: str, test_split: float = None):
         self.roots = [root]

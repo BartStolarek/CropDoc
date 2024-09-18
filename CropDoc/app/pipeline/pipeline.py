@@ -5,7 +5,9 @@ from app.pipeline_helper.transformermanager import TransformerManager
 from app.pipeline_helper.optimisermanager import OptimiserManager
 from app.pipeline_helper.schedulermanager import SchedulerManager
 from app.pipeline_helper.trainingmanager import TrainingManager
+from app.pipeline_helper.testmanager import TestManager
 from app.pipeline_helper.dataloader import TransformDataLoader
+from app.pipeline_helper.evaluationmanager import EvaluationManager
 import os
 import torch
 from loguru import logger
@@ -76,7 +78,7 @@ class Pipeline:
     def test(self):
         
         # Datasets
-        dataset_manager = DatasetManager(config=self.config, output_directory=self.output_directory)
+        dataset_manager = DatasetManager(config=self.config, output_directory=self.output_directory, load_existing_structure=False)
         test_dataset = dataset_manager.get_test_dataset()
         
         # Transformers
@@ -90,6 +92,45 @@ class Pipeline:
             data_structure=dataset_manager.structure,
             eval=True
         )
+        
+        # Loss Functions
+        crop_criterion = torch.nn.CrossEntropyLoss()
+        state_criterion = torch.nn.CrossEntropyLoss()
+        
+        test_manager = TestManager(
+            config=self.config,
+            output_directory=self.output_directory,
+            test_data=test_dataset,
+            test_transformers=test_transformers,
+            model_manager=model_manager,
+            crop_criterion=crop_criterion,
+            state_criterion=state_criterion,
+            data_structure=dataset_manager.structure
+        )
+        
+        test_manager.start_testing()
+        
+        logger.info(f"Testing complete")
+        
+        model_manager.save_model()
+        
+    def evaluate(self):
+        
+        # Models
+        model_manager = ModelManager(
+            config=self.config,
+            output_directory=self.output_directory,
+            eval=True
+        )
+        
+        # Evaluate Training & Validation
+        evaluation_manager = EvaluationManager(
+            config=self.config,
+            output_directory=self.output_directory,
+            model_manager=model_manager
+        )
+        
+        # Evaluate Testing
         
 
     def predict(self):

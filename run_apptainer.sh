@@ -10,10 +10,10 @@ fi
 echo "Starting backend..."
 if command -v nvidia-smi &> /dev/null; then
     echo "NVIDIA GPU detected. Running backend with CUDA support"
-    apptainer run --nvccli --nv --writable-tmpfs --bind ./CropDoc:/CropDoc cropdoc-backend.sif &
+    apptainer run --fakeroot --nvccli --nv --writable-tmpfs --bind ./CropDoc:/CropDoc:rw cropdoc-backend.sif &
 else
     echo "No NVIDIA GPU detected. Running backend without CUDA support"
-    apptainer run -writeable-tmpfs --bind ./CropDoc:/CropDoc cropdoc-backend.sif &
+    apptainer run --fakeroot --writable-tmpfs --bind ./CropDoc:/CropDoc:rw cropdoc-backend.sif &
 fi
 
 # Run the frontend

@@ -33,22 +33,6 @@ def handle_train(pipeline_config: str):
     # Train the modeol
     pipeline.train()
 
-    # # Save the model
-    # pipeline.save_pipeline()
-
-    # # Save Confusion matrix metrics
-    # pipeline.save_confusion_matrix()
-
-    # # Save the evaluation graphs
-    # pipeline.save_graphs()
-
-    # # Package the pipeline for API return
-    # pipeline_package = pipeline.package()
-
-    # logger.info("Training pipeline completed")
-
-    # return pipeline_package
-
 
 def handle_predict(pipeline_config, image_path: str) -> dict:
     """ A method/function to run the prediction pipeline
@@ -98,18 +82,9 @@ def handle_test(pipeline_config):
     pipeline = Pipeline(config)
 
     # Test the model
-    pipeline.test_model()
+    pipeline.test()
     
-    # Save pipeline
-    pipeline.save_pipeline()
-
-    # Package the pipeline for API return
-    pipeline_package = pipeline.package()
-
     logger.info("Test pipeline completed")
-
-    return pipeline_package
-
 
 def handle_predict_many(config, directory_path: str) -> Tuple[dict, dict]:
     """ A method/function to run the prediction pipeline on multiple images
@@ -293,6 +268,6 @@ def handle_evaluate(pipeline_config):
     pipeline = Pipeline(config)
     
     # Evaluate the model
-    evaluation = pipeline.evaluate_model()
+    evaluation = pipeline.evaluate()
     
     

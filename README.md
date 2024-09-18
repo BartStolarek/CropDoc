@@ -158,6 +158,7 @@ If you're using Apptainer instead of Docker, follow these steps:
 ```
 chmod +x build_apptainer.sh
 chmod +x run_apptainer.sh
+chmod +x run_cropdoc.sh 
 ```
 
 3. Build the containers if they are not built or if you have made changes to dependencies, packages or docker files:
@@ -192,6 +193,7 @@ To run customer backend commands:
 ```
 apptainer shell --nv --nvccli --writable-tmpfs --bind ./CropDoc:/CropDoc --pwd /CropDoc cropdoc-backend.sif
 ```
+Note: If nvidia-container-cli executable is not found remove the --nvccli flag.
 
 3. Once inside the container, you can run the same commands as listed in the Docker section
 

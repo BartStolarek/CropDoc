@@ -20,8 +20,20 @@ class ModelMeta:
             self.progression_metrics = ProgressionMetrics(performance_dict=meta_dict['progression_metrics'])
         else:
             self.progression_metrics = meta_dict['progression_metrics']
+            
+        logger.info(f"Initialised ModelMeta with epochs: {self.epochs}, crops: {len(self.crops)}, states: {len(self.states)}, name: {self.name}, version: {self.version}")
+
          
     def to_dict(self):
+        if self.epochs != None and not isinstance(self.epochs, int):
+            raise ValueError(f"Epochs must be an integer or None, not {type(self.epochs)}")
+        
+        if self.performance_metrics != None and not isinstance(self.performance_metrics, PerformanceMetrics):
+            raise ValueError(f"Performance metrics must be a PerformanceMetrics object or None, not {type(self.performance_metrics)}")
+        
+        if self.progression_metrics != None and not isinstance(self.progression_metrics, ProgressionMetrics):
+            raise ValueError(f"Progression metrics must be a ProgressionMetrics object or None, not {type(self.progression_metrics)}")
+        
         return {
             'epochs': self.epochs,
             'crops': self.crops.tolist(),  # Convert NumPy array to list
@@ -34,8 +46,6 @@ class ModelMeta:
     
     def __str__(self):
         return f"{self.name} ({self.version}) trained for {self.epochs} epochs, with crops: {len(self.crops)} and states: {len(self.states)}"
-
-
 
 
 class ResNet50(torch.nn.Module):

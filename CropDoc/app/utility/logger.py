@@ -46,4 +46,4 @@ def setup_logger():
         enqueue=True,
         #compression="zip",
         format=logger_format,
-        level="INFO")
+        level="DEBUG")
