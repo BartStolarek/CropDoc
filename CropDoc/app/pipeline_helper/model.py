@@ -230,7 +230,7 @@ class VGG16(torch.nn.Module):
         # Return the crop and state tensors
         return crop_out, state_out
 
-    def save_checkpoint(self, epoch, optimizer, scheduler, model_meta, filename, checkpoint_directory):
+    def save_checkpoint(self, epoch, optimiser, scheduler, model_meta, filename, checkpoint_directory):
         """
         Save the model checkpoint
 
@@ -252,7 +252,7 @@ class VGG16(torch.nn.Module):
         torch.save(self.state_dict(), os.path.join(directory_path, f'{filename}.pth'))
         
         # Save the optimizer checkpoint
-        torch.save(optimizer.state_dict(), os.path.join(directory_path, 'optimizer.pth'))
+        torch.save(optimiser.state_dict(), os.path.join(directory_path, 'optimizer.pth'))
         
         # Save the scheduler checkpoint
         torch.save(scheduler.state_dict(), os.path.join(directory_path, 'scheduler.pth'))
