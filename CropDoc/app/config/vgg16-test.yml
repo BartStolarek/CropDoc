@@ -1,6 +1,6 @@
 pipeline:
-  model: ResNet50
-  version: 3.0
+  model: VGG16
+  version: test
 datasets:
   - name: CropCCMTDataset
     class: CropCCMTDataset  # Class names are; CropCCMTDataset, PlantVillageDataset
@@ -12,10 +12,10 @@ datasets:
     test_split: 0.2
     active: False
 train:
-  epochs: 50
+  epochs: 2
   checkpoint_interval: 5 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)
   validation_split: 0.2
-  batch_size: 384  # (3 * 128)
+  batch_size: 32  # (3 * 128)
   num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
   learning_rate: 0.005
   lr_scheduler:
@@ -31,8 +31,8 @@ train:
   loss_function: # List of loss functions can be found here: https://pytorch.org/docs/stable/nn.html#loss-functions  
     type: CrossEntropyLoss
 test:
-  batch_size: 384
-  num_workers: 4
+  batch_size: 32
+  num_workers: 2
 predict:
   crop:
     confidence_threshold: 0.2

@@ -149,4 +149,113 @@ class ResNet50(torch.nn.Module):
         # Save the model meta data
         torch.save(model_meta.to_dict(), os.path.join(directory_path, f'{filename}.meta'))
         
+class VGG16(torch.nn.Module):
+    """A multi-head VGG16 model for the CropCCMT dataset"""
+
+    def __init__(self, num_classes_crop, num_classes_state):
+        """
+        Initialize a multi-head VGG16 model with:
+        - A VGG16 backbone with pre-trained weights
+        - A crop head
+        - A state head
+        
+        Also move the model to the GPU if available
+
+        Args:
+            num_classes_crop (int): The number of unique classes for the crop head
+            num_classes_state (int): The number of unique classes for the state head
+        """
+        super(VGG16, self).__init__()
+        
+        logger.info(f'Initializing VGG16 model with {num_classes_crop} crop classes and {num_classes_state} state classes')
+        
+        self.create_new_head(num_classes_crop, num_classes_state)
+
+        # Wrap only the vgg part in DataParallel
+        self.vgg = torch.nn.DataParallel(self.vgg)
+
+    def create_new_head(self, num_classes_crop, num_classes_state):
+        """Create new heads for the crop and state heads"""
+        
+        # Check if GPU is available
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        # Load the VGG16 model with pre-trained weights
+        self.vgg = torchvision.models.vgg16(weights=torchvision.models.VGG16_Weights.DEFAULT)
+        
+        # Find the last Linear layer in the classifier
+        last_linear_layer = None
+        for layer in reversed(list(self.vgg.classifier)):
+            if isinstance(layer, torch.nn.Linear):
+                last_linear_layer = layer
+                break
+        
+        if last_linear_layer is None:
+            raise ValueError("Could not find a Linear layer in the VGG16 classifier")
+
+        num_ftrs = last_linear_layer.out_features
+
+        # Modify the classifier to remove all layers after the last Linear layer
+        new_classifier = torch.nn.Sequential(*list(self.vgg.classifier.children())[:list(self.vgg.classifier.children()).index(last_linear_layer)+1])
+        self.vgg.classifier = new_classifier
+        
+        # Create new crop and state heads
+        self.crop_fc = torch.nn.Linear(num_ftrs, num_classes_crop)
+        self.state_fc = torch.nn.Linear(num_ftrs, num_classes_state)
+        
+        # Move model components to the appropriate device
+        self.vgg = self.vgg.to(self.device)
+        self.crop_fc = self.crop_fc.to(self.device)
+        self.state_fc = self.state_fc.to(self.device)
     
+    def forward(self, x):
+        """
+        Forward pass through the model, and return the tensors for the crop and state heads as a tuple
+
+        Args:
+            x (torch.Tensor): The input tensor, where x.shape is torch.Size(<batch_size>, <num_channels>, <height>, <width>)
+
+        Returns:
+            tuple: A tuple containing the crop and state tensors
+        """
+        x = x.to(self.device)  # Move input to GPU if available
+        
+        # Forward pass through the VGG backbone
+        x = self.vgg(x)
+
+        # Forward pass through the crop and state heads
+        crop_out = self.crop_fc(x)
+        state_out = self.state_fc(x)
+        
+        # Return the crop and state tensors
+        return crop_out, state_out
+
+    def save_checkpoint(self, epoch, optimizer, scheduler, model_meta, filename, checkpoint_directory):
+        """
+        Save the model checkpoint
+
+        Args:
+            epoch (int): The current epoch
+            optimizer (torch.optim): The optimizer
+            scheduler: The learning rate scheduler
+            model_meta: The model metadata
+            filename (str): The filename
+            checkpoint_directory (str): The directory to save the checkpoint
+        """
+        import os
+
+        directory_path = os.path.join(checkpoint_directory, f'epoch_{epoch}')
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path, exist_ok=True)
+
+        # Save the model checkpoint
+        torch.save(self.state_dict(), os.path.join(directory_path, f'{filename}.pth'))
+        
+        # Save the optimizer checkpoint
+        torch.save(optimizer.state_dict(), os.path.join(directory_path, 'optimizer.pth'))
+        
+        # Save the scheduler checkpoint
+        torch.save(scheduler.state_dict(), os.path.join(directory_path, 'scheduler.pth'))
+        
+        # Save the model meta data
+        torch.save(model_meta.to_dict(), os.path.join(directory_path, f'{filename}.meta'))    

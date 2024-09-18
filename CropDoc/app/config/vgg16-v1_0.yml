@@ -1,6 +1,6 @@
 pipeline:
-  model: ResNet50
-  version: 3.0
+  model: VGG16
+  version: 1.0
 datasets:
   - name: CropCCMTDataset
     class: CropCCMTDataset  # Class names are; CropCCMTDataset, PlantVillageDataset

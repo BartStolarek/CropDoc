@@ -10,7 +10,11 @@ fi
 echo "Starting backend..."
 if command -v nvidia-smi &> /dev/null; then
     echo "NVIDIA GPU detected. Running backend with CUDA support"
-    apptainer run --fakeroot --nvccli --nv --writable-tmpfs --bind ./CropDoc:/CropDoc:rw cropdoc-backend.sif &
+    NVIDIA_FLAGS="--nv"
+    if [ -x "$(command -v nvidia-container-cli)" ]; then
+        NVIDIA_FLAGS="$NVIDIA_FLAGS --nvccli"
+    fi
+    apptainer run --fakeroot $NVIDIA_FLAGS --writable-tmpfs --bind ./CropDoc:/CropDoc:rw cropdoc-backend.sif &
 else
     echo "No NVIDIA GPU detected. Running backend without CUDA support"
     apptainer run --fakeroot --writable-tmpfs --bind ./CropDoc:/CropDoc:rw cropdoc-backend.sif &

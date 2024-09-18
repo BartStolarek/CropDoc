@@ -31,8 +31,8 @@ train:
   loss_function: # List of loss functions can be found here: https://pytorch.org/docs/stable/nn.html#loss-functions  
     type: CrossEntropyLoss
 test:
-  batch_size: 64
-  num_workers: 1
+  batch_size: 384
+  num_workers: 4
 predict:
   crop:
     confidence_threshold: 0.2
