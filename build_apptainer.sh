@@ -38,12 +38,29 @@ if $build_frontend; then
     apptainer build --fakeroot cropdoc-frontend.sif Apptainer.frontend
 fi
 
+# Check for NVIDIA GPU
+if command -v nvidia-smi &> /dev/null; then
+    echo "NVIDIA GPU detected. Running with CUDA support."
+    NVIDIA_FLAGS="--nv"
+    
+    # Check if nvidia-container-cli is available
+    if [ -x "$(command -v nvidia-container-cli)" ]; then
+        echo "nvidia-container-cli detected. Adding --nvccli flag."
+        NVIDIA_FLAGS="$NVIDIA_FLAGS --nvccli"
+    else
+        echo "nvidia-container-cli not found. Proceeding without --nvccli flag."
+    fi
+else
+    echo "No NVIDIA GPU detected. Running without CUDA support."
+    NVIDIA_FLAGS=""
+fi
+
 # Build backend if flag is set
 if $build_backend; then
     echo "Building backend container..."
     if command -v nvidia-smi &> /dev/null; then
         echo "NVIDIA GPU detected. Building with CUDA support..."
-        apptainer build --fakeroot --nv --nvccli cropdoc-backend.sif Apptainer.backend
+        apptainer build --fakeroot $NVIDIA_FLAGS cropdoc-backend.sif Apptainer.backend
     else
         echo "No NVIDIA GPU detected. Building without CUDA support..."
         apptainer build --fakeroot cropdoc-backend.sif Apptainer.backend
