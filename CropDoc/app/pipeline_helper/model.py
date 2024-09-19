@@ -4,6 +4,7 @@ import os
 import numpy as np
 from app.pipeline_helper.metricstrackers import PerformanceMetrics, ProgressionMetrics
 from loguru import logger
+from torch import nn
 
 class ModelMeta:
     def __init__(self, meta_dict: dict):
@@ -22,16 +23,15 @@ class ModelMeta:
             self.progression_metrics = meta_dict['progression_metrics']
             
         logger.info(f"Initialised ModelMeta with epochs: {self.epochs}, crops: {len(self.crops)}, states: {len(self.states)}, name: {self.name}, version: {self.version}")
-
-         
+   
     def to_dict(self):
-        if self.epochs != None and not isinstance(self.epochs, int):
+        if self.epochs is not None and not isinstance(self.epochs, int):
             raise ValueError(f"Epochs must be an integer or None, not {type(self.epochs)}")
         
-        if self.performance_metrics != None and not isinstance(self.performance_metrics, PerformanceMetrics):
+        if self.performance_metrics is not None and not isinstance(self.performance_metrics, PerformanceMetrics):
             raise ValueError(f"Performance metrics must be a PerformanceMetrics object or None, not {type(self.performance_metrics)}")
         
-        if self.progression_metrics != None and not isinstance(self.progression_metrics, ProgressionMetrics):
+        if self.progression_metrics is not None and not isinstance(self.progression_metrics, ProgressionMetrics):
             raise ValueError(f"Progression metrics must be a ProgressionMetrics object or None, not {type(self.progression_metrics)}")
         
         return {
@@ -48,11 +48,11 @@ class ModelMeta:
         return f"{self.name} ({self.version}) trained for {self.epochs} epochs, with crops: {len(self.crops)} and states: {len(self.states)}"
 
 
-class ResNet50(torch.nn.Module):
+class ResNet50(nn.Module):
     """A multi-head ResNet model for the CropCCMT dataset
 
     Args:
-        torch (torch.nn.Module): The PyTorch module
+        torch (nn.Module): The PyTorch module
     """
 
     def __init__(self, num_classes_crop, num_classes_state):
@@ -74,13 +74,13 @@ class ResNet50(torch.nn.Module):
         self.create_new_head(num_classes_crop, num_classes_state)
 
         # Wrap only the resnet part in DataParallel
-        self.resnet = torch.nn.DataParallel(self.resnet)
+        self.resnet = nn.DataParallel(self.resnet)
 
     def create_new_head(self, num_classes_crop, num_classes_state):
         """ Create new heads for the crop and state heads
 
         Returns:
-            torch.nn.Module: The model with new heads
+            nn.Module: The model with new heads
         """
         
         # Check if GPU is available
@@ -93,10 +93,10 @@ class ResNet50(torch.nn.Module):
         )  # TODO: Add to report why we used ResNet50 default weights and benefits
         
         num_ftres = self.resnet.fc.in_features
-        self.resnet.fc = torch.nn.Identity()
+        self.resnet.fc = nn.Identity()
         
-        self.crop_fc = torch.nn.Linear(num_ftres, num_classes_crop)
-        self.state_fc = torch.nn.Linear(num_ftres, num_classes_state)
+        self.crop_fc = nn.Linear(num_ftres, num_classes_crop)
+        self.state_fc = nn.Linear(num_ftres, num_classes_state)
         
         self.resnet = self.resnet.to(self.device)
         self.crop_fc = self.crop_fc.to(self.device)
@@ -149,7 +149,7 @@ class ResNet50(torch.nn.Module):
         # Save the model meta data
         torch.save(model_meta.to_dict(), os.path.join(directory_path, f'{filename}.meta'))
         
-class VGG16(torch.nn.Module):
+class VGG16(nn.Module):
     """A multi-head VGG16 model for the CropCCMT dataset"""
 
     def __init__(self, num_classes_crop, num_classes_state):
@@ -172,7 +172,7 @@ class VGG16(torch.nn.Module):
         self.create_new_head(num_classes_crop, num_classes_state)
 
         # Wrap only the vgg part in DataParallel
-        self.vgg = torch.nn.DataParallel(self.vgg)
+        self.vgg = nn.DataParallel(self.vgg)
 
     def create_new_head(self, num_classes_crop, num_classes_state):
         """Create new heads for the crop and state heads"""
@@ -180,33 +180,33 @@ class VGG16(torch.nn.Module):
         # Check if GPU is available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # Load the VGG16 model with pre-trained weights
-        self.vgg = torchvision.models.vgg16(weights=torchvision.models.VGG16_Weights.DEFAULT)
+        self.classifier_num = (num_classes_crop, num_classes_state)
+        self.vgg = nn.Sequential(
+            self.convLayer(3, 64),
+            self.convLayer(64, 64),
+            nn.MaxPool2d((2, 2), (2, 2)),
+            self.convLayer(64, 128),
+            self.convLayer(128, 128),
+            nn.MaxPool2d((2, 2), (2, 2)),
+            self.convLayer(128, 256),
+            self.convLayer(256, 256),
+            self.convLayer(256, 256),
+            nn.MaxPool2d((2, 2), (2, 2)),
+            self.convLayer(256, 512),
+            self.convLayer(512, 512),
+            self.convLayer(512, 512),
+            nn.MaxPool2d((2, 2), (2, 2)),
+            self.convLayer(512, 512),
+            self.convLayer(512, 512),
+            self.convLayer(512, 512),
+            nn.MaxPool2d((2, 2), (2, 2))
+        )
         
-        # Find the last Linear layer in the classifier
-        last_linear_layer = None
-        for layer in reversed(list(self.vgg.classifier)):
-            if isinstance(layer, torch.nn.Linear):
-                last_linear_layer = layer
-                break
+        self.avgPool = nn.AdaptiveAvgPool2d((7, 7))
+        dropout = 0.5
+        self.classifier1 = self.classifier(num_classes_crop, dropout)
+        self.classifier2 = self.classifier(num_classes_state, dropout)
         
-        if last_linear_layer is None:
-            raise ValueError("Could not find a Linear layer in the VGG16 classifier")
-
-        num_ftrs = last_linear_layer.out_features
-
-        # Modify the classifier to remove all layers after the last Linear layer
-        new_classifier = torch.nn.Sequential(*list(self.vgg.classifier.children())[:list(self.vgg.classifier.children()).index(last_linear_layer)+1])
-        self.vgg.classifier = new_classifier
-        
-        # Create new crop and state heads
-        self.crop_fc = torch.nn.Linear(num_ftrs, num_classes_crop)
-        self.state_fc = torch.nn.Linear(num_ftrs, num_classes_state)
-        
-        # Move model components to the appropriate device
-        self.vgg = self.vgg.to(self.device)
-        self.crop_fc = self.crop_fc.to(self.device)
-        self.state_fc = self.state_fc.to(self.device)
     
     def forward(self, x):
         """
@@ -222,13 +222,15 @@ class VGG16(torch.nn.Module):
         
         # Forward pass through the VGG backbone
         x = self.vgg(x)
-
-        # Forward pass through the crop and state heads
-        crop_out = self.crop_fc(x)
-        state_out = self.state_fc(x)
-        
-        # Return the crop and state tensors
-        return crop_out, state_out
+        x = self.avgPool(x)
+        x = torch.flatten(x, 1)
+        if isinstance(self.classifier_num, tuple):
+            class_1 = self.classifier1(x)
+            class_2 = self.classifier2(x)
+            return class_1, class_2
+        else:
+            x = self.classifier1(x)
+            return x
 
     def save_checkpoint(self, epoch, optimiser, scheduler, model_meta, filename, checkpoint_directory):
         """
@@ -259,3 +261,12 @@ class VGG16(torch.nn.Module):
         
         # Save the model meta data
         torch.save(model_meta.to_dict(), os.path.join(directory_path, f'{filename}.meta'))    
+
+    def convLayer(self, layer_in: int, layer_out: int) -> nn.Sequential:
+        return nn.Sequential(nn.Conv2d(layer_in, layer_out, 3, 1, padding="same"), nn.BatchNorm2d(layer_out), nn.ReLU())
+    
+    def classifier(self, num_classes: int, dropout: float) -> nn.Sequential:
+        return nn.Sequential(self.linLayer(7 * 7 * 512, 4096, dropout), self.linLayer(4096, 1024, dropout), nn.Linear(1024, num_classes))
+
+    def linLayer(self, layer_in: int, layer_out: int, dropout: float) -> nn.Sequential:
+        return nn.Sequential(nn.Linear(layer_in, layer_out), nn.ReLU(), nn.Dropout(dropout))

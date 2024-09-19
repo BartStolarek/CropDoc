@@ -161,7 +161,6 @@ class PerformanceMetrics():
             self.val = SplitMetrics(epoch=epoch, split='val')
             self.test = SplitMetrics(epoch=epoch, split='test')
         else:
-            logger.debug(f"Performance dict is for epoch {performance_dict['epoch']}")
             self.epoch = performance_dict['epoch']
             if not (self.epoch is None or (isinstance(self.epoch, int) and self.epoch >= 0)):
                 raise ValueError(f"Epoch must be None, positive integer or zero - {self.epoch}")
