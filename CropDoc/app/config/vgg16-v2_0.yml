@@ -12,12 +12,12 @@ datasets:
     test_split: 0.2
     active: False
 train:
-  epochs: 50
-  checkpoint_interval: 5 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)
+  epochs: 70
+  checkpoint_interval: 1 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)
   validation_split: 0.2
-  batch_size: 384  # (3 * 128)
+  batch_size: 128  # (3 * 128)
   num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
-  learning_rate: 0.005
+  learning_rate: 0.001
   lr_scheduler:
     active: ReduceLROnPlateau
     StepLR:
