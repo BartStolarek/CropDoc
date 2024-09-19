@@ -191,9 +191,8 @@ To run customer backend commands:
 2. Run the backend container interactively:
 
 ```
-apptainer shell --nv --nvccli --writable-tmpfs --bind ./CropDoc:/CropDoc --pwd /CropDoc cropdoc-backend.sif
+./run_cropdoc.sh
 ```
-Note: If nvidia-container-cli executable is not found remove the --nvccli flag.
 
 3. Once inside the container, you can run the same commands as listed in the Docker section
 
