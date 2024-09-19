@@ -174,7 +174,20 @@ class VGG16(nn.Module):
             self.convLayer(3, 64),
             self.convLayer(64, 64),
             nn.MaxPool2d((2, 2), (2, 2)),
-            # ... (rest of the layers)
+            self.convLayer(64, 128),
+            self.convLayer(128, 128),
+            nn.MaxPool2d((2, 2), (2, 2)),
+            self.convLayer(128, 256),
+            self.convLayer(256, 256),
+            self.convLayer(256, 256),
+            nn.MaxPool2d((2, 2), (2, 2)),
+            self.convLayer(256, 512),
+            self.convLayer(512, 512),
+            self.convLayer(512, 512),
+            nn.MaxPool2d((2, 2), (2, 2)),
+            self.convLayer(512, 512),
+            self.convLayer(512, 512),
+            self.convLayer(512, 512),
             nn.MaxPool2d((2, 2), (2, 2))
         )
         
