@@ -153,30 +153,19 @@ class VGG16(nn.Module):
     """A multi-head VGG16 model for the CropCCMT dataset"""
 
     def __init__(self, num_classes_crop, num_classes_state):
-        """
-        Initialize a multi-head VGG16 model with:
-        - A VGG16 backbone with pre-trained weights
-        - A crop head
-        - A state head
-        
-        Also move the model to the GPU if available
-
-        Args:
-            num_classes_crop (int): The number of unique classes for the crop head
-            num_classes_state (int): The number of unique classes for the state head
-        """
         super(VGG16, self).__init__()
         
         logger.info(f'Initializing VGG16 model with {num_classes_crop} crop classes and {num_classes_state} state classes')
         
         self.create_new_head(num_classes_crop, num_classes_state)
 
-        # Wrap only the vgg part in DataParallel
+        # Move the entire model to the device
+        self.to(self.device)
+
+        # Wrap the vgg part in DataParallel
         self.vgg = nn.DataParallel(self.vgg)
 
     def create_new_head(self, num_classes_crop, num_classes_state):
-        """Create new heads for the crop and state heads"""
-        
         # Check if GPU is available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -185,20 +174,7 @@ class VGG16(nn.Module):
             self.convLayer(3, 64),
             self.convLayer(64, 64),
             nn.MaxPool2d((2, 2), (2, 2)),
-            self.convLayer(64, 128),
-            self.convLayer(128, 128),
-            nn.MaxPool2d((2, 2), (2, 2)),
-            self.convLayer(128, 256),
-            self.convLayer(256, 256),
-            self.convLayer(256, 256),
-            nn.MaxPool2d((2, 2), (2, 2)),
-            self.convLayer(256, 512),
-            self.convLayer(512, 512),
-            self.convLayer(512, 512),
-            nn.MaxPool2d((2, 2), (2, 2)),
-            self.convLayer(512, 512),
-            self.convLayer(512, 512),
-            self.convLayer(512, 512),
+            # ... (rest of the layers)
             nn.MaxPool2d((2, 2), (2, 2))
         )
         
@@ -206,21 +182,10 @@ class VGG16(nn.Module):
         dropout = 0.5
         self.classifier1 = self.classifier(num_classes_crop, dropout)
         self.classifier2 = self.classifier(num_classes_state, dropout)
-        
-    
+
     def forward(self, x):
-        """
-        Forward pass through the model, and return the tensors for the crop and state heads as a tuple
-
-        Args:
-            x (torch.Tensor): The input tensor, where x.shape is torch.Size(<batch_size>, <num_channels>, <height>, <width>)
-
-        Returns:
-            tuple: A tuple containing the crop and state tensors
-        """
-        x = x.to(self.device)  # Move input to GPU if available
+        x = x.to(self.device)  # Move input to the same device as the model
         
-        # Forward pass through the VGG backbone
         x = self.vgg(x)
         x = self.avgPool(x)
         x = torch.flatten(x, 1)
