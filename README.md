@@ -114,7 +114,20 @@ The backend application includes several custom commands that can be run using t
 
     - Produce evaluation metrics, plots and details:
     
-        ```python manage.py evaluate -c <config_file>```    
+        ```python manage.py evaluate -c <config_file>```  
+
+    - For developers, unit tests can be run using the following command:
+    
+        ```python manage.py unittest```
+
+    - For developers unit tests with coverage can be run using the following command:
+    
+        ```python manage.py unittest --coverage```
+
+    - For developers, to run the formatter over the code:
+    
+        ```python manage.py format``` 
+     
 
     Config file is a yml file that contains the configuration for the training process, located in CropDoc/app/config/ directory, just use the name of the file, not the full path.
     Optionally, you can add in additional key word (kwargs) arguments to the train command by adding the flag `-k` or `--kwargs`.
