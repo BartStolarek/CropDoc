@@ -1,5 +1,3 @@
-# app/api/pipeline.py
-
 import os
 
 import numpy as np
@@ -10,44 +8,64 @@ from werkzeug.utils import secure_filename
 
 from app import main_api
 from app.config import AppConfig
+from app.handler.pipeline import handle_predict
 
 pipeline_blueprint = Blueprint('pipeline', __name__)
-pipeline_ns = Namespace('pipeline', description='pipeline operations')
+pipeline_ns = Namespace('pipeline', description='Pipeline operations for disease classification')
 
 main_api.add_namespace(pipeline_ns)
 
-# Define the pipeline data structure (this can be updated according to your needs)
+# Define the pipeline data structure
 pipeline_data = pipeline_ns.model(
-    'pipelineData', {'pipeline': fields.String(description='pipeline data')})
-
+    'PipelineData', {
+        'pipeline': fields.String(description='Information about the current disease classification pipeline')
+    }
+)
 
 @pipeline_ns.route('/')
-class pipelineResource(Resource):
-
+class PipelineResource(Resource):
     @pipeline_ns.doc(
         'get_pipeline',
-        description=
-        'Retrieve information about the current disease classification pipeline'
+        description='Retrieve information about the current disease classification pipeline'
     )
     @pipeline_ns.marshal_with(pipeline_data)
     def get(self):
-        """Get pipeline data"""
-        return {'pipeline': 'pipeline_data'}
-
+        """
+        Get pipeline data
+        
+        Returns:
+            dict: A dictionary containing information about the current disease classification pipeline
+        """
+        return {'pipeline': 'Current pipeline configuration and status'}
 
 @pipeline_ns.route('/predict')
 class PredictResource(Resource):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # You might need to initialize your pipeline here, if it's not already initialized
+        # Initialize pipeline if necessary
         # self.pipeline = load_your_pipeline()
 
-    @pipeline_ns.doc('predict',
-                     description='Predict the class of the uploaded image')
+    @pipeline_ns.doc(
+        'predict',
+        description='Predict the class of the uploaded image using the disease classification pipeline'
+    )
+    @pipeline_ns.expect(pipeline_ns.parser().add_argument('file', location='files', type='file', required=True))
+    @pipeline_ns.response(200, 'Success', fields.Raw(description='Prediction results'))
+    @pipeline_ns.response(400, 'Bad Request')
+    @pipeline_ns.response(500, 'Internal Server Error')
     def post(self):
-        """Predict the class of the uploaded image"""
-
+        """
+        Predict the class of the uploaded image
+        
+        This endpoint accepts an image file upload and uses the disease classification pipeline to predict its class.
+        
+        Returns:
+            dict: A dictionary containing the prediction results
+        
+        Raises:
+            400 Bad Request: If no file is uploaded or the file is invalid
+            500 Internal Server Error: If file upload or processing fails
+        """
         logger.info('Received POST request to predict')
 
         if 'file' not in request.files:
@@ -60,40 +78,25 @@ class PredictResource(Resource):
             return {'message': 'No selected file'}, 400
 
         if file:
-            # Secure the filename and ensure the directory exists
             filename = secure_filename(file.filename)
             temp_dir = os.path.join(AppConfig.DATA_DIR, 'tmp')
-            os.makedirs(
-                temp_dir,
-                exist_ok=True)  # Create the directory if it does not exist
+            os.makedirs(temp_dir, exist_ok=True)
 
             file_path = os.path.join(temp_dir, filename)
             file.save(file_path)
 
             logger.info(f'File saved to {file_path}')
 
-            # Load the image and make prediction (pseudo-code)
-            # image = load_image(file_path)
-            # prediction = self.pipeline.predict(image)
-            config = 'resnet50-split'
-            pipeline_file = 'pipeline'
-            method = 'predict'
+            config = 'resnet50-v3_1'
             kwargs = {'image_path': file_path}
 
-            results = handle_pipeline(file=pipeline_file,
-                                      method=method,
-                                      pipeline_config=config,
-                                      **kwargs)
+            results = handle_predict(pipeline_config=config, **kwargs)
 
-            # Convert NumPy types to native Python types
             def convert_to_serializable(obj):
                 if isinstance(obj, np.generic):
                     return obj.item()
                 elif isinstance(obj, dict):
-                    return {
-                        key: convert_to_serializable(value)
-                        for key, value in obj.items()
-                    }
+                    return {key: convert_to_serializable(value) for key, value in obj.items()}
                 elif isinstance(obj, list):
                     return [convert_to_serializable(item) for item in obj]
                 else:
@@ -101,11 +104,9 @@ class PredictResource(Resource):
             
             serializable_results = convert_to_serializable(results)
 
-            # Remove the file after processing
             os.remove(file_path)
 
-            logger.info(
-                f'Responding with prediction: {results}...')
+            logger.info(f'Responding with prediction: {results}...')
 
             return jsonify(serializable_results)
 

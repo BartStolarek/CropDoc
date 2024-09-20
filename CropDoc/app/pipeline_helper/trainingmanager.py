@@ -228,4 +228,9 @@ class TrainingManager(PipelineManager):
         self.model_manager.model_meta.epochs += self.epochs_to_train
         self.model_manager.model_meta.performance_metrics.train = self.performance_metrics.train
         self.model_manager.model_meta.performance_metrics.val = self.performance_metrics.val
-        self.model_manager.model_meta.progression_metrics.past_performance_metrics.extend(self.progression_metrics.past_performance_metrics)
+        for metric in self.progression_metrics:
+            self.model_manager.model_meta.progression_metrics[metric.epoch] = metric
+            
+        # Remove any additional progression metrics
+        self.model_manager.model_meta.progression_metrics = self.model_manager.model_meta.progression_metrics[:self.model_manager.model_meta.epochs]  
+                    

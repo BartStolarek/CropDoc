@@ -47,6 +47,8 @@ class ModelMeta:
     def __str__(self):
         return f"{self.name} ({self.version}) trained for {self.epochs} epochs, with crops: {len(self.crops)} and states: {len(self.states)}"
 
+    def get_epochs_in_progression_metrics(self):
+        return [performance_metric.epoch for performance_metric in self.progression_metrics]
 
 class ResNet50(nn.Module):
     """A multi-head ResNet model for the CropCCMT dataset

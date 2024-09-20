@@ -144,6 +144,9 @@ class EvaluationManager():
         Returns:
             plt: The matplotlib.pyplot object with the plot.
         """
+        logger.info(f"Generating line graph for {title} with {len(y_values)} y-values and {len(x_values)} x-values")
+        logger.debug(f"X-values: {x_values}")
+        logger.debug(f"Y-values: {y_values}")
         
         plt.figure(figsize=(10, 6))
         
