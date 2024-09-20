@@ -8,6 +8,7 @@ from app.pipeline_helper.trainingmanager import TrainingManager
 from app.pipeline_helper.testmanager import TestManager
 from app.pipeline_helper.dataloader import TransformDataLoader
 from app.pipeline_helper.evaluationmanager import EvaluationManager
+from app.pipeline_helper.predictmanager import PredictManager
 import os
 import torch
 from loguru import logger
@@ -124,14 +125,34 @@ class Pipeline:
         )
         
         # Evaluate Training & Validation
-        evaluation_manager = EvaluationManager(
+        EvaluationManager(
             config=self.config,
             output_directory=self.output_directory,
             model_manager=model_manager
         )
         
-        # Evaluate Testing
         
 
-    def predict(self):
-        pass
+    def predict(self, image_path):
+        
+        model_manager = ModelManager(
+            config=self.config,
+            output_directory=self.output_directory,
+            eval=True
+        )
+        
+        transformer_manager = TransformerManager()
+        test_transformers = transformer_manager.get_test_transformers()
+        
+        predict_manager = PredictManager(
+            config=self.config,
+            output_directory=self.output_directory,
+            eval=True,
+            model_manager=model_manager,
+            transformers=test_transformers,
+            image_path=image_path,
+        )
+        
+        prediction = predict_manager.predict()
+        
+        return prediction

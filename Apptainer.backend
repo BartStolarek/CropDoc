@@ -5,7 +5,6 @@ From: pytorch/pytorch:latest
     mkdir -p ${SINGULARITY_ROOTFS}/CropDoc
 
 %files
-    ./CropDoc /CropDoc
     ./CropDoc/requirements.txt /CropDoc/requirements.txt
 
 %post

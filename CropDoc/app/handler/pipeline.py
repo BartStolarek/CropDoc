@@ -54,10 +54,7 @@ def handle_predict(pipeline_config, image_path: str) -> dict:
     pipeline = Pipeline(config)
 
     # Predict the image
-    prediction = pipeline.predict_model(image_path)
-
-    # Save prediction to a file
-    pipeline.save_prediction(prediction)
+    prediction = pipeline.predict(image_path)
 
     logger.info("Prediction pipeline completed")
 
