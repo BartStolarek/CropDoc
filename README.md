@@ -119,10 +119,8 @@ The backend application includes several custom commands that can be run using t
     - For developers, unit tests can be run using the following command:
     
         ```python manage.py unittest```
-
-    - For developers unit tests with coverage can be run using the following command:
-    
-        ```python manage.py unittest --coverage```
+        ```python manage.py unittest --coverage``` Add coverage flag to get coverage report.
+        ```python manage.py unittest --filename <filename>``` Add filename flag to run a specific test file.
 
     - For developers, to run the formatter over the code:
     
