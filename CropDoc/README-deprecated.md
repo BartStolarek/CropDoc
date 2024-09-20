@@ -1,5 +1,4 @@
-# COSC320-GroupD
-
+# DEPRECATED README
 Hello World!
 
 

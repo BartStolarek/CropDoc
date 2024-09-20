@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 import click
 from flask.cli import FlaskGroup
@@ -176,6 +177,64 @@ def evaluate(config, kwargs):
     logger.info(f"Pipeline evaluate command {'successful' if result else 'failed'}")
 
 
+@cli.command('unittest')
+@click.option('-f',
+                '--filename',
+                'filename',
+                default=None,
+                help='The file name to be tested')
+@click.option('-c',
+                '--coverage',
+                'coverage_console',
+                is_flag=True,
+                help='Whether to run coverage or not')
+def unittest(filename=None, coverage_console=False):
+    """Run the unit tests."""
+    # Define the base directory for tests
+    base_test_dir = os.path.abspath("tests")
+
+    if filename:
+        # Search for the file within the base_test_dir
+        test_path = next(
+            (os.path.join(root, file)
+             for root, _, files in os.walk(base_test_dir)
+             for file in files if file == f"{filename}.py"), None)
+        if test_path:
+            logger.debug(f"Test file {filename}.py found at {test_path}")
+        else:
+            print(f"Test file {filename}.py not found in {base_test_dir}!")
+            return 1
+    else:
+        test_path = base_test_dir
+
+    # Check if the data/tests directory exists, if not, create it
+    if not os.path.exists('data/tests'):
+        os.makedirs('data/tests')
+
+    # Delete .coverage file before running coverage report
+    if os.path.exists('.coverage'):
+        os.remove('.coverage')
+
+    # Run pytest with coverage
+    logger.info(f"Running tests in {test_path}")
+    cmd = f"python -m pytest {test_path}"
+    if coverage_console:
+        cmd = f"coverage run -m pytest {test_path}"
+    exit_code = os.system(cmd)
+
+    # Generate the coverage report
+    if coverage_console:
+        os.system("coverage report -m")
+        os.system("coverage html -d data/tests/htmlcov")
+        print("Coverage report generated at: data/tests/htmlcov/index.html")
+
+    if exit_code != 0:
+        print("At least one test failed!")
+        sys.exit(1)
+    else:
+        print("All tests passed successfully!")
+
+    return exit_code
 
 @cli.command('runserver')
 @click.option('--debug',
