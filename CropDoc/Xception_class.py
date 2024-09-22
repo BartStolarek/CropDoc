@@ -172,11 +172,11 @@ def xception(num_classes, **kwargs):
     pretrained = True
     if pretrained:
         # Load the pretrained model weights
-        state_dict = torch.load('xception-43020ad28.pth')
+        state_dict = torch.load('xception_trained_model.pth')
 
         # Remove the fully connected layer's weights from the state_dict to avoid the size mismatch error
-        del state_dict['fc.weight']
-        del state_dict['fc.bias']
+        #del state_dict['fc.weight']
+        #del state_dict['fc.bias']
 
         # Load the remaining pretrained weights (strict=False allows for missing keys, like fc)
         model.load_state_dict(state_dict, strict=False)
@@ -184,3 +184,4 @@ def xception(num_classes, **kwargs):
         # Replace the final fully connected layer to match the number of classes (e.g., 4)
         model.fc = torch.nn.Linear(2048, num_classes)
     return model
+ 
