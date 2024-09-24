@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import torch
-from app.pipeline_helper.model import ResNet50, VGG16
+from app.pipeline_helper.model import ResNet50, VGG16, Xception
 from app.pipeline_helper.datasetadapter import Structure
 from app.pipeline_helper.numpyarraymanager import NumpyArrayManager
 from app.pipeline_helper.model import ModelMeta
@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
 MODEL_CLASSES = {
     'ResNet50': ResNet50,
     'VGG16': VGG16,
-    # 'Xception': Xception,
+    'Xception': Xception,
 }
 
 

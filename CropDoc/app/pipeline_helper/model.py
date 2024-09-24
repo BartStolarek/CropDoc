@@ -50,7 +50,43 @@ class ModelMeta:
     def get_epochs_in_progression_metrics(self):
         return [performance_metric.epoch for performance_metric in self.progression_metrics]
 
-class ResNet50(nn.Module):
+
+class BaseCustomModel(nn.Module):
+    
+    def __init__(self):
+        super(BaseCustomModel, self).__init__()
+    
+    def save_checkpoint(self, epoch, optimiser, scheduler, model_meta, filename, checkpoint_directory):
+        """
+        Save the model checkpoint
+
+        Args:
+            epoch (int): The current epoch
+            optimizer (torch.optim): The optimizer
+            scheduler: The learning rate scheduler
+            model_meta: The model metadata
+            filename (str): The filename
+            checkpoint_directory (str): The directory to save the checkpoint
+        """
+        import os
+
+        directory_path = os.path.join(checkpoint_directory, f'epoch_{epoch}')
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path, exist_ok=True)
+
+        # Save the model checkpoint
+        torch.save(self.state_dict(), os.path.join(directory_path, f'{filename}.pth'))
+        
+        # Save the optimizer checkpoint
+        torch.save(optimiser.state_dict(), os.path.join(directory_path, 'optimizer.pth'))
+        
+        # Save the scheduler checkpoint
+        torch.save(scheduler.state_dict(), os.path.join(directory_path, 'scheduler.pth'))
+        
+        # Save the model meta data
+        torch.save(model_meta.to_dict(), os.path.join(directory_path, f'{filename}.meta'))    
+
+class ResNet50(BaseCustomModel):
     """A multi-head ResNet model for the CropCCMT dataset
 
     Args:
@@ -125,33 +161,7 @@ class ResNet50(nn.Module):
         # Return the crop and state tensors
         return crop_out, state_out  # TODO: Add to report that the forward pass will return the crop and state tensors
 
-    def save_checkpoint(self, epoch, optimiser, scheduler, model_meta, filename, checkpoint_directory):
-        """ Save the model checkpoint
-
-        Args:
-            epoch (int): The current epoch
-            optimizer (torch.optim): The optimizer
-            loss (float): The loss
-            filename (str): The filename
-            checkpoint_directory (str): The directory to save the checkpoint
-        """
-        directory_path = os.path.join(checkpoint_directory, f'epoch_{epoch}')
-        if not os.path.exists(directory_path):
-            os.makedirs(directory_path, exist_ok=True)
-
-        # Save the model checkpoint
-        torch.save(self.state_dict(), os.path.join(directory_path, f'{filename}.pth'))
-        
-        # Save the optimiser checkpoint
-        torch.save(optimiser.state_dict(), os.path.join(directory_path, 'optimiser.pth'))
-        
-        # Save the scheduler checkpoint
-        torch.save(scheduler.state_dict(), os.path.join(directory_path, 'scheduler.pth'))
-        
-        # Save the model meta data
-        torch.save(model_meta.to_dict(), os.path.join(directory_path, f'{filename}.meta'))
-        
-class VGG16(nn.Module):
+class VGG16(BaseCustomModel):
     """A multi-head VGG16 model for the CropCCMT dataset"""
 
     def __init__(self, num_classes_crop, num_classes_state):
@@ -198,7 +208,7 @@ class VGG16(nn.Module):
         self.classifier1 = self.classifier(num_classes_crop, dropout)
         self.classifier2 = self.classifier(num_classes_state, dropout)
 
-    def forward(self, x):
+        def forward(self, x):
         x = x.to(self.device)  # Move input to the same device as the model
         
         x = self.vgg(x)
@@ -211,37 +221,7 @@ class VGG16(nn.Module):
         else:
             x = self.classifier1(x)
             return x
-
-    def save_checkpoint(self, epoch, optimiser, scheduler, model_meta, filename, checkpoint_directory):
-        """
-        Save the model checkpoint
-
-        Args:
-            epoch (int): The current epoch
-            optimizer (torch.optim): The optimizer
-            scheduler: The learning rate scheduler
-            model_meta: The model metadata
-            filename (str): The filename
-            checkpoint_directory (str): The directory to save the checkpoint
-        """
-        import os
-
-        directory_path = os.path.join(checkpoint_directory, f'epoch_{epoch}')
-        if not os.path.exists(directory_path):
-            os.makedirs(directory_path, exist_ok=True)
-
-        # Save the model checkpoint
-        torch.save(self.state_dict(), os.path.join(directory_path, f'{filename}.pth'))
-        
-        # Save the optimizer checkpoint
-        torch.save(optimiser.state_dict(), os.path.join(directory_path, 'optimizer.pth'))
-        
-        # Save the scheduler checkpoint
-        torch.save(scheduler.state_dict(), os.path.join(directory_path, 'scheduler.pth'))
-        
-        # Save the model meta data
-        torch.save(model_meta.to_dict(), os.path.join(directory_path, f'{filename}.meta'))    
-
+    
     def convLayer(self, layer_in: int, layer_out: int) -> nn.Sequential:
         return nn.Sequential(nn.Conv2d(layer_in, layer_out, 3, 1, padding="same"), nn.BatchNorm2d(layer_out), nn.ReLU())
     
@@ -250,3 +230,74 @@ class VGG16(nn.Module):
 
     def linLayer(self, layer_in: int, layer_out: int, dropout: float) -> nn.Sequential:
         return nn.Sequential(nn.Linear(layer_in, layer_out), nn.ReLU(), nn.Dropout(dropout))
+     
+class Xception(BaseCustomModel):
+    """A multi-head Xception model for the CropCCMT dataset"""
+
+    def __init__(self, num_classes_crop, num_classes_state):
+        """
+        Initialize a multi-head Xception model with:
+        - An Xception backbone and pre-trained weights
+        - A crop head
+        - A state head
+        
+        Also move the model to the GPU if available
+
+        Args:
+            num_classes_crop (int): The number of unique classes for the crop head
+            num_classes_state (int): The number of unique classes for the state head
+        """
+        super(Xception, self).__init__()
+        
+        logger.info(f'Initialising Xception model with {num_classes_crop} crop classes and {num_classes_state} state classes')
+        
+        self.create_new_head(num_classes_crop, num_classes_state)
+
+        # Wrap only the xception part in DataParallel
+        self.xception = nn.DataParallel(self.xception)
+
+    def create_new_head(self, num_classes_crop, num_classes_state):
+        """Create new heads for the crop and state heads"""
+        
+        # Check if GPU is available
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        # Load the Xception model with pre-trained weights
+        self.xception = torchvision.models.xception(weights=torchvision.models.Xception_Weights.IMAGENET1K_V1)
+        
+        # Get the number of features from the last layer
+        num_ftres = self.xception.fc.in_features
+        
+        # Replace the final fully connected layer with an Identity layer
+        self.xception.fc = nn.Identity()
+        
+        # Create new fully connected layers for crop and state predictions
+        self.crop_fc = nn.Linear(num_ftres, num_classes_crop)
+        self.state_fc = nn.Linear(num_ftres, num_classes_state)
+        
+        # Move model components to the appropriate device
+        self.xception = self.xception.to(self.device)
+        self.crop_fc = self.crop_fc.to(self.device)
+        self.state_fc = self.state_fc.to(self.device)
+    
+    def forward(self, x):
+        """
+        Forward pass through the model, and return the tensors for the crop and state heads as a tuple
+
+        Args:
+            x (torch.Tensor): The input tensor, where x.shape is torch.Size(<batch_size>, <num_channels>, <height>, <width>)
+
+        Returns:
+            tuple: A tuple containing the crop and state tensors
+        """
+        x = x.to(self.device)  # Move input to GPU if available
+        
+        # Forward pass through the Xception backbone
+        x = self.xception(x)
+
+        # Forward pass through the crop and state heads
+        crop_out = self.crop_fc(x)
+        state_out = self.state_fc(x)
+        
+        # Return the crop and state tensors
+        return crop_out, state_out
