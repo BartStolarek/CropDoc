@@ -5,6 +5,8 @@ import numpy as np
 from app.pipeline_helper.metricstrackers import PerformanceMetrics, ProgressionMetrics
 from loguru import logger
 from torch import nn
+import torch.nn.functional as F
+
 
 class ModelMeta:
     def __init__(self, meta_dict: dict):
@@ -209,18 +211,18 @@ class VGG16(BaseCustomModel):
         self.classifier2 = self.classifier(num_classes_state, dropout)
 
         def forward(self, x):
-        x = x.to(self.device)  # Move input to the same device as the model
-        
-        x = self.vgg(x)
-        x = self.avgPool(x)
-        x = torch.flatten(x, 1)
-        if isinstance(self.classifier_num, tuple):
-            class_1 = self.classifier1(x)
-            class_2 = self.classifier2(x)
-            return class_1, class_2
-        else:
-            x = self.classifier1(x)
-            return x
+            x = x.to(self.device)  # Move input to the same device as the model
+            
+            x = self.vgg(x)
+            x = self.avgPool(x)
+            x = torch.flatten(x, 1)
+            if isinstance(self.classifier_num, tuple):
+                class_1 = self.classifier1(x)
+                class_2 = self.classifier2(x)
+                return class_1, class_2
+            else:
+                x = self.classifier1(x)
+                return x
     
     def convLayer(self, layer_in: int, layer_out: int) -> nn.Sequential:
         return nn.Sequential(nn.Conv2d(layer_in, layer_out, 3, 1, padding="same"), nn.BatchNorm2d(layer_out), nn.ReLU())
@@ -231,13 +233,77 @@ class VGG16(BaseCustomModel):
     def linLayer(self, layer_in: int, layer_out: int, dropout: float) -> nn.Sequential:
         return nn.Sequential(nn.Linear(layer_in, layer_out), nn.ReLU(), nn.Dropout(dropout))
      
+
+class SeparableConv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=False):
+        super(SeparableConv2d, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size, stride, padding, dilation, groups=in_channels, bias=bias)
+        self.pointwise = nn.Conv2d(in_channels, out_channels, 1, 1, 0, 1, 1, bias=bias)
+    
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.pointwise(x)
+        return x
+
+
+class Block(nn.Module):
+    def __init__(self, in_filters, out_filters, reps, strides=1, start_with_relu=True, grow_first=True):
+        super(Block, self).__init__()
+
+        if out_filters != in_filters or strides != 1:
+            self.skip = nn.Conv2d(in_filters, out_filters, 1, stride=strides, bias=False)
+            self.skipbn = nn.BatchNorm2d(out_filters)
+        else:
+            self.skip = None
+        
+        self.relu = nn.ReLU(inplace=True)
+        rep = []
+
+        filters = in_filters
+        if grow_first:
+            rep.append(self.relu)
+            rep.append(SeparableConv2d(in_filters, out_filters, 3, stride=1, padding=1, bias=False))
+            rep.append(nn.BatchNorm2d(out_filters))
+            filters = out_filters
+
+        for i in range(reps - 1):
+            rep.append(self.relu)
+            rep.append(SeparableConv2d(filters, filters, 3, stride=1, padding=1, bias=False))
+            rep.append(nn.BatchNorm2d(filters))
+        
+        if not grow_first:
+            rep.append(self.relu)
+            rep.append(SeparableConv2d(in_filters, out_filters, 3, stride=1, padding=1, bias=False))
+            rep.append(nn.BatchNorm2d(out_filters))
+
+        if not start_with_relu:
+            rep = rep[1:]
+        else:
+            rep[0] = nn.ReLU(inplace=False)
+
+        if strides != 1:
+            rep.append(nn.MaxPool2d(3, strides, 1))
+        self.rep = nn.Sequential(*rep)
+
+    def forward(self, inp):
+        x = self.rep(inp)
+
+        if self.skip is not None:
+            skip = self.skip(inp)
+            skip = self.skipbn(skip)
+        else:
+            skip = inp
+
+        x += skip
+        return x
+
+
 class Xception(BaseCustomModel):
     """A multi-head Xception model for the CropCCMT dataset"""
 
     def __init__(self, num_classes_crop, num_classes_state):
-        """
-        Initialize a multi-head Xception model with:
-        - An Xception backbone and pre-trained weights
+        """ Initialize a multi-head Xception model with:
+        - An Xception backbone
         - A crop head
         - A state head
         
@@ -257,35 +323,62 @@ class Xception(BaseCustomModel):
         self.xception = nn.DataParallel(self.xception)
 
     def create_new_head(self, num_classes_crop, num_classes_state):
-        """Create new heads for the crop and state heads"""
+        """ Create new heads for the crop and state heads
+
+        Returns:
+            nn.Module: The model with new heads
+        """
         
         # Check if GPU is available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # Load the Xception model with pre-trained weights
-        self.xception = torchvision.models.xception(weights=torchvision.models.Xception_Weights.IMAGENET1K_V1)
+        # Create the Xception backbone
+        self.xception = self._create_xception_backbone()
         
         # Get the number of features from the last layer
-        num_ftres = self.xception.fc.in_features
+        num_ftres = 2048  # Xception's last conv layer has 2048 filters
         
-        # Replace the final fully connected layer with an Identity layer
-        self.xception.fc = nn.Identity()
-        
-        # Create new fully connected layers for crop and state predictions
         self.crop_fc = nn.Linear(num_ftres, num_classes_crop)
         self.state_fc = nn.Linear(num_ftres, num_classes_state)
         
-        # Move model components to the appropriate device
         self.xception = self.xception.to(self.device)
         self.crop_fc = self.crop_fc.to(self.device)
         self.state_fc = self.state_fc.to(self.device)
-    
+
+    def _create_xception_backbone(self):
+        xception = nn.Sequential(
+            nn.Conv2d(3, 32, 3, 2, 0, bias=False),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, 64, 3, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            Block(64, 128, 2, 2, start_with_relu=False, grow_first=True),
+            Block(128, 256, 2, 2, start_with_relu=True, grow_first=True),
+            Block(256, 728, 2, 2, start_with_relu=True, grow_first=True),
+            Block(728, 728, 3, 1, start_with_relu=True, grow_first=True),
+            Block(728, 728, 3, 1, start_with_relu=True, grow_first=True),
+            Block(728, 728, 3, 1, start_with_relu=True, grow_first=True),
+            Block(728, 728, 3, 1, start_with_relu=True, grow_first=True),
+            Block(728, 728, 3, 1, start_with_relu=True, grow_first=True),
+            Block(728, 728, 3, 1, start_with_relu=True, grow_first=True),
+            Block(728, 728, 3, 1, start_with_relu=True, grow_first=True),
+            Block(728, 728, 3, 1, start_with_relu=True, grow_first=True),
+            Block(728, 1024, 2, 2, start_with_relu=True, grow_first=False),
+            SeparableConv2d(1024, 1536, 3, 1, 1),
+            nn.BatchNorm2d(1536),
+            nn.ReLU(inplace=True),
+            SeparableConv2d(1536, 2048, 3, 1, 1),
+            nn.BatchNorm2d(2048),
+            nn.ReLU(inplace=True),
+        )
+        return xception
+
     def forward(self, x):
-        """
-        Forward pass through the model, and return the tensors for the crop and state heads as a tuple
+        """ Forward pass through the model, and return the tensors for the crop and state heads as a tuple
 
         Args:
-            x (torch.Tensor): The input tensor, where x.shape is torch.Size(<batch_size>, <num_channels>, <height>, <width>)
+            x (torch.Tensor): The input tensor, where x.shape is torch.Size(<batch_size>, 3, height, width)
 
         Returns:
             tuple: A tuple containing the crop and state tensors
@@ -294,6 +387,10 @@ class Xception(BaseCustomModel):
         
         # Forward pass through the Xception backbone
         x = self.xception(x)
+
+        # Global average pooling
+        x = F.adaptive_avg_pool2d(x, (1, 1))
+        x = x.view(x.size(0), -1)
 
         # Forward pass through the crop and state heads
         crop_out = self.crop_fc(x)
