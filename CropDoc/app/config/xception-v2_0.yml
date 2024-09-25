@@ -1,6 +1,6 @@
 pipeline:
   model: Xception
-  version: 1.0
+  version: 2.0
 datasets:
   - name: CropCCMTDataset
     class: CropCCMTDataset  # Class names are; CropCCMTDataset, PlantVillageDataset
@@ -10,12 +10,12 @@ datasets:
     class: PlantVillageDataset
     root: data/datasets/plantvillage/color
     test_split: 0.2
-    active: False
+    active: True
 train:
   epochs: 50
   checkpoint_interval: 5 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)
   validation_split: 0.2
-  batch_size: 384  # (3 * 128)
+  batch_size: 370  # (3 * 128)
   num_workers: 4 #  Number of works, more info here: https://pytorch.org/docs/stable/data.html#multi-process-data-loading
   learning_rate: 0.005
   lr_scheduler:
