@@ -228,6 +228,9 @@ class ProgressionMetrics():
     def __getitem__(self, idx):
         return self.past_performance_metrics[idx]
     
+    def __setitem__(self, idx, value):
+        self.past_performance_metrics[idx] = value
+    
     def to_dict(self):
         result = []
         for i, metric in enumerate(self.past_performance_metrics):
