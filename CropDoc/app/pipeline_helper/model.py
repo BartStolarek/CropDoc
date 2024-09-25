@@ -19,10 +19,13 @@ class ModelMeta:
             self.performance_metrics = PerformanceMetrics(performance_dict=meta_dict['performance_metrics'])
         else:
             self.performance_metrics = meta_dict['performance_metrics']
+        
         if isinstance(meta_dict['progression_metrics'], list):
-            self.progression_metrics = ProgressionMetrics(performance_dict=meta_dict['progression_metrics'])
-        else:
+            self.progression_metrics = ProgressionMetrics(progression_list=meta_dict['progression_metrics'])
+        elif isinstance(meta_dict['progression_metrics'], ProgressionMetrics):
             self.progression_metrics = meta_dict['progression_metrics']
+        else:
+            raise ValueError(f"Progression metrics must be a list or ProgressionMetrics object, not {type(meta_dict['progression_metrics'])}")
             
         logger.info(f"Initialised ModelMeta with epochs: {self.epochs}, crops: {len(self.crops)}, states: {len(self.states)}, name: {self.name}, version: {self.version}")
    
@@ -33,8 +36,13 @@ class ModelMeta:
         if self.performance_metrics is not None and not isinstance(self.performance_metrics, PerformanceMetrics):
             raise ValueError(f"Performance metrics must be a PerformanceMetrics object or None, not {type(self.performance_metrics)}")
         
-        if self.progression_metrics is not None and not isinstance(self.progression_metrics, ProgressionMetrics):
-            raise ValueError(f"Progression metrics must be a ProgressionMetrics object or None, not {type(self.progression_metrics)}")
+        print(f"self.progression_metrics({self.progression_metrics}): {self.progression_metrics}")
+        
+        if not isinstance(self.progression_metrics, ProgressionMetrics):
+            self.progression_metrics = ProgressionMetrics(progression_list=self.progression_metrics)
+        
+        if not isinstance(self.progression_metrics, ProgressionMetrics):
+            raise ValueError(f"Progression metrics must be a ProgressionMetrics object, not {type(self.progression_metrics)}")
         
         return {
             'epochs': self.epochs,
@@ -43,7 +51,7 @@ class ModelMeta:
             'name': self.name,
             'version': self.version,
             'performance_metrics': self.performance_metrics.to_dict(),
-            'progression_metrics': self.progression_metrics.to_dict()
+            'progression_metrics': self.progression_metrics.to_list()
         }
     
     def __str__(self):

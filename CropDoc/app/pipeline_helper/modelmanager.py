@@ -111,6 +111,10 @@ class ModelManager:
             'progression_metrics': ProgressionMetrics(),
             'performance_metrics': PerformanceMetrics()
         })
+        
+        if not isinstance(model_meta.progression_metrics, ProgressionMetrics):
+            raise Exception(f"Progression metrics is not an instance of ProgressionMetrics: {type(model_meta.progression_metrics)}")
+        
         logger.info(f"Created new model {self.name_version} with data structure crops: {len(self.data_structure.crops)} and states: {len(self.data_structure.states)}")
         if self.eval:
             logger.info("Model set to evaluation mode")
@@ -151,6 +155,10 @@ class ModelManager:
     def save_model(self):
         
         model_dict = self.model.state_dict()
+        
+        print(f"self.model_meta({type(self.model_meta)}): {self.model_meta}")
+        print(f"self.model_meta.progression_metrics({type(self.model_meta.progression_metrics)}): {self.model_meta.progression_metrics}")
+        
         model_meta_dict = self.model_meta.to_dict()
         
         if not os.path.exists(os.path.join(self.output_directory, 'model')):
@@ -167,6 +175,8 @@ class ModelManager:
         return self.model_meta.epochs
 
     def get_progress_metrics_tracker(self):
+        if not isinstance(self.model_meta.progression_metrics, ProgressionMetrics):
+            raise TypeError(f"Progression metrics is not of type ProgressionMetrics, instead got {type(self.model_meta.progression_metrics)}")
         return self.model_meta.progression_metrics
     
     def get_performance_metrics_tracker(self):

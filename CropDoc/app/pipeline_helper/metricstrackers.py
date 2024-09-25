@@ -213,11 +213,18 @@ class PerformanceMetrics():
         
         
 class ProgressionMetrics():
-    def __init__(self, performance_dict=None):
-        if performance_dict is None:
+    def __init__(self, progression_list=None):
+        if progression_list is None:
             self.past_performance_metrics = []
         else:
-            self.past_performance_metrics = [PerformanceMetrics(performance_dict=metric) for metric in performance_dict]
+            self.past_performance_metrics = []
+            for metric in progression_list:
+                if isinstance(metric, dict):
+                    self.past_performance_metrics.append(PerformanceMetrics(performance_dict=metric))
+                elif isinstance(metric, PerformanceMetrics):
+                    self.past_performance_metrics.append(metric)
+                else:
+                    raise TypeError("Can only append dictionaries or PerformanceMetrics objects")
     
     def __iter__(self):
         return iter(self.past_performance_metrics)
@@ -231,9 +238,15 @@ class ProgressionMetrics():
     def __setitem__(self, idx, value):
         self.past_performance_metrics[idx] = value
     
-    def to_dict(self):
+    def append(self, performance_metric):
+        if isinstance(performance_metric, PerformanceMetrics):
+            self.past_performance_metrics.append(performance_metric)
+        else:
+            raise TypeError("Can only append PerformanceMetrics objects")
+    
+    def to_list(self):
         result = []
-        for i, metric in enumerate(self.past_performance_metrics):
+        for metric in self.past_performance_metrics:
             try:
                 result.append(metric.to_dict())
             except Exception as e:

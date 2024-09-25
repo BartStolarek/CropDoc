@@ -83,6 +83,9 @@ class TrainingManager(PipelineManager):
         
         # Obtain progression metric tracker
         self.progression_metrics = self.model_manager.get_progress_metrics_tracker()
+        if not isinstance(self.progression_metrics, ProgressionMetrics):
+            raise TypeError(f"Progression metrics is not of type ProgressionMetrics, instead got {type(self.progression_metrics)}")
+        
         self.performance_metrics = self.model_manager.get_performance_metrics_tracker()
         
         
@@ -135,7 +138,9 @@ class TrainingManager(PipelineManager):
             epochs_progress.set_postfix(epoch_performance_metrics.get_formatted_metrics_as_dict())
 
             # Append the metrics to the training metrics list
-            self.progression_metrics.past_performance_metrics.append(epoch_performance_metrics)
+            self.progression_metrics.append(epoch_performance_metrics)
+            if not isinstance(self.progression_metrics, ProgressionMetrics):
+                raise TypeError(f"Progression metrics is not of type ProgressionMetrics, instead got {type(self.progression_metrics)}")
 
             initial_epoch = False
 
@@ -228,7 +233,15 @@ class TrainingManager(PipelineManager):
         self.model_manager.model_meta.epochs += self.epochs_to_train
         self.model_manager.model_meta.performance_metrics.train = self.performance_metrics.train
         self.model_manager.model_meta.performance_metrics.val = self.performance_metrics.val
+        if not isinstance(self.progression_metrics, ProgressionMetrics):
+            raise TypeError(f"Progression metrics is not of type ProgressionMetrics, instead got {type(self.progression_metrics)}")
         for metric in self.progression_metrics:
+            if not isinstance(metric, PerformanceMetrics):
+                raise TypeError(f"Progression metrics is not of type PerformanceMetrics, instead got {type(metric)}")
+            
+            if not isinstance(self.model_manager.model_meta.progression_metrics, ProgressionMetrics):
+                raise TypeError(f"Progression metrics is not of type ProgressionMetrics, instead got {type(self.model_manager.model_meta.progression_metrics)}")
+            
             self.model_manager.model_meta.progression_metrics[metric.epoch] = metric
             
         # Remove any additional progression metrics

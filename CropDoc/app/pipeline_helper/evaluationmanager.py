@@ -2,6 +2,7 @@ import os
 import matplotlib.pyplot as plt
 from loguru import logger
 import numpy as np
+from app.pipeline_helper.metricstrackers import ProgressionMetrics
 
 class EvaluationManager():
     
@@ -19,6 +20,8 @@ class EvaluationManager():
         
         # Get the progression metrics
         self.progression_metrics = self.model_manager.model_meta.progression_metrics
+        if not isinstance(self.progression_metrics, ProgressionMetrics):
+            raise TypeError(f"Progression metrics is not of type ProgressionMetrics, instead got {type(self.progression_metrics)}")
         self.performance_metrics = self.model_manager.model_meta.performance_metrics
         
         # Obtained number of epochs

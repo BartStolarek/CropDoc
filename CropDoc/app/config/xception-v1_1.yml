@@ -1,6 +1,6 @@
 pipeline:
   model: Xception
-  version: 2.0
+  version: 1.1
 datasets:
   - name: CropCCMTDataset
     class: CropCCMTDataset  # Class names are; CropCCMTDataset, PlantVillageDataset
@@ -12,7 +12,7 @@ datasets:
     test_split: 0.2
     active: True
 train:
-  epochs: 50
+  epochs: 5
   checkpoint_interval: 5 # Minimum amount of epochs before checking for a improved checkpoint (checkpoints only after 25% of epochs have completed)
   validation_split: 0.2
   batch_size: 370  # (3 * 128)
