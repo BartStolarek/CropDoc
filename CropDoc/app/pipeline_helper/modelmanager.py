@@ -155,10 +155,7 @@ class ModelManager:
     def save_model(self):
         
         model_dict = self.model.state_dict()
-        
-        print(f"self.model_meta({type(self.model_meta)}): {self.model_meta}")
-        print(f"self.model_meta.progression_metrics({type(self.model_meta.progression_metrics)}): {self.model_meta.progression_metrics}")
-        
+
         model_meta_dict = self.model_meta.to_dict()
         
         if not os.path.exists(os.path.join(self.output_directory, 'model')):

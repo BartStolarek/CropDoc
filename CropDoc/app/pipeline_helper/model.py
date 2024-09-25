@@ -35,8 +35,7 @@ class ModelMeta:
         
         if self.performance_metrics is not None and not isinstance(self.performance_metrics, PerformanceMetrics):
             raise ValueError(f"Performance metrics must be a PerformanceMetrics object or None, not {type(self.performance_metrics)}")
-        
-        print(f"self.progression_metrics({self.progression_metrics}): {self.progression_metrics}")
+
         
         if not isinstance(self.progression_metrics, ProgressionMetrics):
             self.progression_metrics = ProgressionMetrics(progression_list=self.progression_metrics)

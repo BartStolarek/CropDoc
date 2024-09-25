@@ -65,8 +65,6 @@ class Metrics:
                 f"{split_letter}{label_letter}L": self.format_loss(self.loss),
             }
         except TypeError as e:
-            print(f"Error in get_formatted_dict: {self}")
-            print(f"self.accuracy: {self.accuracy}, self.loss: {self.loss}")
             raise TypeError(e)
         
     def format_accuracy(self, metric: float) -> str:
@@ -226,6 +224,15 @@ class ProgressionMetrics():
                 else:
                     raise TypeError("Can only append dictionaries or PerformanceMetrics objects")
     
+    def remove_duplicate_performance_metrics(self):
+        epochs = []
+        new_list = []
+        for metric in self.past_performance_metrics:
+            if metric.epoch not in epochs:
+                epochs.append(metric.epoch)
+                new_list.append(metric)
+        self.past_performance_metrics = new_list
+        
     def __iter__(self):
         return iter(self.past_performance_metrics)
     

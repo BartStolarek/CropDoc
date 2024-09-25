@@ -235,14 +235,19 @@ class TrainingManager(PipelineManager):
         self.model_manager.model_meta.performance_metrics.val = self.performance_metrics.val
         if not isinstance(self.progression_metrics, ProgressionMetrics):
             raise TypeError(f"Progression metrics is not of type ProgressionMetrics, instead got {type(self.progression_metrics)}")
+        
         for metric in self.progression_metrics:
             if not isinstance(metric, PerformanceMetrics):
                 raise TypeError(f"Progression metrics is not of type PerformanceMetrics, instead got {type(metric)}")
             
             if not isinstance(self.model_manager.model_meta.progression_metrics, ProgressionMetrics):
                 raise TypeError(f"Progression metrics is not of type ProgressionMetrics, instead got {type(self.model_manager.model_meta.progression_metrics)}")
-            
-            self.model_manager.model_meta.progression_metrics[metric.epoch] = metric
+        
+        # Remove duplicates
+        self.model_manager.model_meta.progression_metrics.remove_duplicate_performance_metrics()
+        
+        # Sort the progression metrics by epoch
+        self.model_manager.model_meta.progression_metrics.past_performance_metrics.sort(key=lambda x: x.epoch)
             
         # Remove any additional progression metrics
         self.model_manager.model_meta.progression_metrics = self.model_manager.model_meta.progression_metrics[:self.model_manager.model_meta.epochs]  

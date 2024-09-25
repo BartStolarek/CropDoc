@@ -150,7 +150,6 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
             
             # Check if train and test labels are tuples of crop and state labels
             if len(train_labels[0]) != 2 or len(test_labels[0]) != 2:
-                print(len(test_labels[0]))
                 raise ValueError(f"structure_data() must return numpy array for train and test labels, which are tuples of crop and state labels, currently returning {train_labels[0]}")
             else:
                 self.train_labels = train_labels
