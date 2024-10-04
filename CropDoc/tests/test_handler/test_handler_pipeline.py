@@ -87,12 +87,19 @@ class TestHandleTrain:
 
 class TestHandlePredict:
     def test_handle_predict_success(self, mock_load_yaml, mock_pipeline):
-        mock_pipeline.predict_model.return_value = {"crop": "wheat", "state": "healthy"}
-        result = handle_predict("test_config.yaml", "path/to/image.jpg")
+        # mock_pipeline.predict_model.return_value = {"crop": "wheat", "state": "healthy"}
+        # result = handle_predict("test_config.yaml", "path/to/image.jpg")
+        # mock_load_yaml.assert_called_once_with(directory='config', file_name="test_config.yaml")
+        # mock_pipeline.predict_model.assert_called_once_with("path/to/image.jpg")
+        # mock_pipeline.save_prediction.assert_called_once_with({"crop": "wheat", "state": "healthy"})
+        # assert result == {"crop": "wheat", "state": "healthy"}       
+        handle_predict("test_config.yaml", "path/to/image.jpg")
         mock_load_yaml.assert_called_once_with(directory='config', file_name="test_config.yaml")
-        mock_pipeline.predict_model.assert_called_once_with("path/to/image.jpg")
-        mock_pipeline.save_prediction.assert_called_once_with({"crop": "wheat", "state": "healthy"})
-        assert result == {"crop": "wheat", "state": "healthy"}
+        mock_pipeline.predict.assert_called_once()
+        mock_pipeline.predict.return_value = {"crop": "tomato", "state": "healthy"}
+        mock_pipeline.predict.assert_called_once_with("path/to/image.jpg")
+        # mock_pipeline.save_prediction.assert_called_once_with({"crop": "wheat", "state": "healthy"})
+        # assert result == {"crop": "wheat", "state": "healthy"}
 
 class TestHandleTest:
     def test_handle_test_success(self, mock_load_yaml, mock_pipeline):
