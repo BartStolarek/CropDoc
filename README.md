@@ -7,6 +7,7 @@ This project is a part of the course "Algorithms in Machine Learning" at the Uni
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
+
 - Docker
 - Docker Compose
 
@@ -33,23 +34,22 @@ COSC320-GROUPD/
 ### Development Workflow/Mode
 
 1. Start containers (first time or after Dockerfile/dependency changes):
-    
-    ```docker-compose -f docker-compose.dev.yml up --build```
+
+   `docker-compose -f docker-compose.dev.yml up --build`
 
 2. For subsequent development sessions:
-    
-    ```docker-compose -f docker-compose.dev.yml up```
+
+   `docker-compose -f docker-compose.dev.yml up`
 
 3. Make changes to the code. These changes should be reflected immediately due to volume mounting and hot reloading.
 
-4. If you make changes that require a rebuild (like changing dependencies), stop the containers and use ```--build``` again.
+4. If you make changes that require a rebuild (like changing dependencies), stop the containers and use `--build` again.
 
 ### Production Mode
 
 To start the application in production mode:
 
     ```docker-compose -f docker-compose.prod.yml up --build```
-
 
 ### Stopping the Application
 
@@ -62,9 +62,10 @@ docker-compose -f docker-compose.prod.yml down  # For production mode
 
 ## Accessing and Using the Application
 
-There are two methods to use the application, the most useful method is using the command line interface (CLI), the second method which is less useful but more user-friendly is using the frontend. 
+There are two methods to use the application, the most useful method is using the command line interface (CLI), the second method which is less useful but more user-friendly is using the frontend.
 
 To use the frontend, you can access it by navigating to the following URL in your browser for a locally hosted application
+
 - [http://localhost:3000](http://localhost:3000)
 
 To use the CLI, you need to make sure you have start the application in development mode, or production mode. Then you can open a new terminal, further instructions are below.
@@ -75,56 +76,55 @@ The backend application includes several custom commands that can be run using t
 
 1. Access the backend container:
 
-    ```docker-compose -f docker-compose.dev.yml exec backend bash```
+   `docker-compose -f docker-compose.dev.yml exec backend bash`
 
-    Note, change 'dev' to 'prod' if you are using the production mode.
+   Note, change 'dev' to 'prod' if you are using the production mode.
 
 2. Once inside the container, you can run the following commands:
 
-    - Hello World test:
-    
-        ```python manage.py hello```
+   - Hello World test:
 
-    - Run formatters over the code:
-    
-        ```python manage.py format```
-    
-    - Train the model:
-    
-        ```python manage.py train -c <config_file>```
-    
-    - Make a prediction using the model:
+     `python manage.py hello`
 
-        ```python manage.py predict -c <config_file> -i <image_path>```
+   - Run formatters over the code:
 
-    - Test the model using dataset in the config file:
-    
-        ```python manage.py test -c <config_file_name>```
+     `python manage.py format`
 
+   - Train the model:
 
-    - Predict many images using dataset in the config file:
-    
-        ```python manage.py predict_many -c <config_file>```
+     `python manage.py train -c <config_file>`
 
+   - Make a prediction using the model:
 
-    - Produce evaluation metrics, plots and details:
-    
-        ```python manage.py evaluate -c <config_file>```    
+     `python manage.py predict -c <config_file> -i <image_path>`
 
-    Config file is a yml file that contains the configuration for the training process, located in CropDoc/app/config/ directory, just use the name of the file, not the full path.
-    Optionally, you can add in additional key word (kwargs) arguments to the train command by adding the flag `-k` or `--kwargs`.
+   - Test the model using dataset in the config file:
+
+     `python manage.py test -c <config_file_name>`
+
+   - Predict many images using dataset in the config file:
+
+     `python manage.py predict_many -c <config_file>`
+
+   - Produce evaluation metrics, plots and details:
+
+     `python manage.py evaluate -c <config_file>`
+
+   - For developers, unit tests can be run using the following command:
+
+     `python manage.py unittest`
+
+     `python manage.py unittest --coverage` Add coverage flag to get coverage report.
+
+     `python manage.py unittest --filename <filename>` Add filename flag to run a specific test file.
+
+   Config file is a yml file that contains the configuration for the training process, located in CropDoc/app/config/ directory, just use the name of the file, not the full path.
+   Optionally, you can add in additional key word (kwargs) arguments to the train command by adding the flag `-k` or `--kwargs`.
 
 ## Application
 
-
 ### Architecture & Workflow
-
 
 ### API Documentation
 
-
 ## Model
-
-
-
-
